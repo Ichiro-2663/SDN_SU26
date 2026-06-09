@@ -7,9 +7,10 @@ import UserManagement from "../components/Admin/Usermanagement";
 import QuestionBank from "../components/Admin/QuestionBank";
 import ExamManagement from "../components/Admin/ExamManagement";
 import Reports from "../components/Admin/Reports";
+import TopicManagement from "../components/Admin/TopicManagement";
 
 const AdminPage = () => {
-  const [selected, setSelected] = useState("reports");
+  const [selected, setSelected] = useState("users");
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const renderContent = () => {
@@ -17,6 +18,9 @@ const AdminPage = () => {
       case "dashboard":
       case "reports":
         return <Reports />;
+
+      case "topics":
+        return <TopicManagement />;
 
       case "users":
         return <UserManagement />;
@@ -68,7 +72,7 @@ const AdminPage = () => {
           >
             <h2 style={{ margin: 0, fontWeight: "700" }}>Admin Dashboard</h2>
             <p style={{ margin: 0, opacity: 0.9 }}>
-              Manage system, users and reports
+              Manage user accounts and system permissions
             </p>
           </div>
 

@@ -225,8 +225,9 @@ const History = () => {
 
   const displayedHistory = history.filter(item => {
     if (filterType === "All") return true;
-    if (filterType === "Quiz" && item.examId?.type !== "practice") return true;
+    if (filterType === "Quiz" && item.examId?.type === "quiz") return true;
     if (filterType === "Practice" && item.examId?.type === "practice") return true;
+    if (filterType === "MiniTest" && item.examId?.type === "minitest") return true;
     return false;
   });
 
@@ -244,6 +245,7 @@ const History = () => {
           <option value="All">All Types</option>
           <option value="Quiz">Quizzes Only</option>
           <option value="Practice">Practice Only</option>
+          <option value="MiniTest">Mini Tests Only</option>
         </select>
       </div>
 
@@ -277,7 +279,7 @@ const History = () => {
               >
                 <td>{index + 1}</td>
                 <td>
-                   <Badge bg={item.examId?.type === 'practice' ? 'info' : 'warning'}>
+                   <Badge bg={item.examId?.type === 'practice' ? 'info' : item.examId?.type === 'minitest' ? 'success' : 'warning'}>
                      {item.examId?.type ? item.examId.type.toUpperCase() : 'QUIZ'}
                    </Badge>
                 </td>

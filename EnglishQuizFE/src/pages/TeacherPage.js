@@ -5,6 +5,7 @@ import Sidebar from "../components/Sidebar";
 import QuestionBank from "../components/Admin/QuestionBank";
 import ExamManagement from "../components/Admin/ExamManagement";
 import Reports from "../components/Admin/Reports";
+import TopicManagement from "../components/Admin/TopicManagement";
 
 const TeacherPage = () => {
   const [selected, setSelected] = useState("reports");
@@ -14,6 +15,9 @@ const TeacherPage = () => {
     switch (selected) {
       case "reports":
         return <Reports />;
+
+      case "topics":
+        return <TopicManagement />;
 
       case "questions":
         return <QuestionBank />;
