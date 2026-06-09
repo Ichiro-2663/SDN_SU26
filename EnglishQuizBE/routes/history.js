@@ -47,4 +47,15 @@ router.get("/", async (req, res) => {
   }
 });
 
+// DELETE HISTORY RECORD BY ID
+router.delete("/:id", async (req, res) => {
+  try {
+    const deleted = await History.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ message: "History record not found" });
+    res.json({ message: "History record deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 module.exports = router;
