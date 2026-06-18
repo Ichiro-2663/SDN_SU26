@@ -2,37 +2,32 @@ import React, { useState } from "react";
 import Header from "../components/Header";
 import Sidebar from "../components/Sidebar";
 
-// 👉 Admin components (đổi tên cho đúng hệ thống quiz nếu cần)
+// 👉 Admin components
+import AdminDashboard from "../components/Admin/Admindashboard";
 import UserManagement from "../components/Admin/Usermanagement";
-import QuestionBank from "../components/Admin/QuestionBank";
-import ExamManagement from "../components/Admin/ExamManagement";
 import Reports from "../components/Admin/Reports";
-import TopicManagement from "../components/Admin/TopicManagement";
+import SystemNotice from "../components/Admin/SystemNotice";
 
 const AdminPage = () => {
-  const [selected, setSelected] = useState("users");
+  const [selected, setSelected] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const renderContent = () => {
     switch (selected) {
       case "dashboard":
-      case "reports":
-        return <Reports />;
-
-      case "topics":
-        return <TopicManagement />;
+        return <AdminDashboard />;
 
       case "users":
         return <UserManagement />;
 
-      case "questions":
-        return <QuestionBank />;
+      case "reports":
+        return <Reports />;
 
-      case "exams":
-        return <ExamManagement />;
+      case "system":
+        return <SystemNotice />;
 
       default:
-        return <Reports />;
+        return <AdminDashboard />;
     }
   };
 
