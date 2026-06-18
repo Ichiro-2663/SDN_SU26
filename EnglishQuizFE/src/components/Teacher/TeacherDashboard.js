@@ -23,6 +23,9 @@ import {
   Tooltip,
   Legend,
   CartesianGrid,
+  PieChart,
+  Pie,
+  Cell,
 } from "recharts";
 
 const TeacherDashboard = ({ setActiveTab }) => {
@@ -38,6 +41,7 @@ const TeacherDashboard = ({ setActiveTab }) => {
   const [filters, setFilters] = useState({
     topicId: "All",
     examId: "All",
+    testType: "All",
     dateFrom: "",
     dateTo: "",
   });
@@ -91,31 +95,36 @@ const TeacherDashboard = ({ setActiveTab }) => {
     return true;
   });
 
-  // 2. Filter Exams based on Topic
+  // 2. Filter Exams based on Topic and Test Type
   const filteredExams = rawData.exams.filter((e) => {
     if (filters.topicId !== "All") {
       const eTopicId = e.topic?._id || e.topic;
-      return eTopicId === filters.topicId;
+      if (eTopicId !== filters.topicId) return false;
+    }
+    if (filters.testType !== "All") {
+      if (e.type !== filters.testType) return false;
     }
     return true;
   });
 
-  // List of exams matching the current topic selection (for the Exam dropdown)
+  // List of exams matching the current topic and test type selection (for the Exam dropdown)
   const availableExamsForFilter = rawData.exams.filter((e) => {
     if (filters.topicId !== "All") {
       const eTopicId = e.topic?._id || e.topic;
-      return eTopicId === filters.topicId;
+      if (eTopicId !== filters.topicId) return false;
+    }
+    if (filters.testType !== "All") {
+      if (e.type !== filters.testType) return false;
     }
     return true;
   });
 
-  // 3. Filter History Attempts based on Topic, Exam, and Date Range
+  // 3. Filter History Attempts based on Topic, Exam, Test Type, and Date Range
   const filteredHistory = rawData.history.filter((h) => {
     // Topic Filter
     if (filters.topicId !== "All") {
       const examTopicId = h.examId?.topic?._id || h.examId?.topic;
       if (examTopicId !== filters.topicId) {
-        // Fallback: check nested questions
         const hasMatchingQuestionTopic = h.examId?.questions?.some(
           (q) => (q.topic?._id || q.topic) === filters.topicId
         );
@@ -126,6 +135,11 @@ const TeacherDashboard = ({ setActiveTab }) => {
     if (filters.examId !== "All") {
       const hExamId = h.examId?._id || h.examId;
       if (hExamId !== filters.examId) return false;
+    }
+    // Test Type Filter
+    if (filters.testType !== "All") {
+      const hType = h.examId?.type;
+      if (hType !== filters.testType) return false;
     }
     // Date Range Filter
     if (filters.dateFrom) {
@@ -144,9 +158,36 @@ const TeacherDashboard = ({ setActiveTab }) => {
   // 4. Compute unique students participating in filtered attempts
   const activeStudentIds = new Set(filteredHistory.map((h) => h.userId?._id).filter(Boolean));
   const activeStudentsCount = 
-    filters.topicId === "All" && filters.examId === "All" && !filters.dateFrom && !filters.dateTo
+    filters.topicId === "All" && filters.examId === "All" && filters.testType === "All" && !filters.dateFrom && !filters.dateTo
       ? rawData.users.length
       : activeStudentIds.size;
+
+  // --- BREAKDOWNS BY TEST TYPE ---
+
+  // Count attempts by type in current filtered view
+  const attemptsBreakdown = { quiz: 0, practice: 0, minitest: 0 };
+  filteredHistory.forEach((h) => {
+    const type = h.examId?.type || "quiz";
+    if (attemptsBreakdown[type] !== undefined) {
+      attemptsBreakdown[type]++;
+    }
+  });
+
+  // Count exams by type in current filtered view
+  const examsBreakdown = { quiz: 0, practice: 0, minitest: 0 };
+  filteredExams.forEach((e) => {
+    const type = e.type || "quiz";
+    if (examsBreakdown[type] !== undefined) {
+      examsBreakdown[type]++;
+    }
+  });
+
+  // Doughnut Chart Data (Attempts share)
+  const doughnutData = [
+    { name: "Quiz", value: attemptsBreakdown.quiz, color: "#6366f1" },
+    { name: "Practice", value: attemptsBreakdown.practice, color: "#10b981" },
+    { name: "Mini Test", value: attemptsBreakdown.minitest, color: "#f59e0b" },
+  ].filter(item => item.value > 0);
 
   // --- STATS COMPUTATION FOR UI ---
 
@@ -200,7 +241,7 @@ const TeacherDashboard = ({ setActiveTab }) => {
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     .slice(0, 5);
 
-  const isFiltered = filters.topicId !== "All" || filters.examId !== "All" || filters.dateFrom || filters.dateTo;
+  const isFiltered = filters.topicId !== "All" || filters.examId !== "All" || filters.testType !== "All" || filters.dateFrom || filters.dateTo;
 
   const getInitials = (name) => {
     return name
@@ -276,7 +317,7 @@ const TeacherDashboard = ({ setActiveTab }) => {
           )}
         </h6>
         <Row className="g-3 align-items-end">
-          <Col lg={3} md={6}>
+          <Col lg={2} md={4}>
             <div className="small fw-semibold text-secondary mb-1">Filter by Topic</div>
             <select
               className="form-select border-light-subtle rounded-pill shadow-sm"
@@ -284,7 +325,7 @@ const TeacherDashboard = ({ setActiveTab }) => {
               onChange={(e) => {
                 setFilters({ ...filters, topicId: e.target.value, examId: "All" });
               }}
-              style={{ fontSize: "14px", padding: "10px 15px" }}
+              style={{ fontSize: "13px", padding: "10px 15px" }}
             >
               <option value="All">All Topics</option>
               {rawData.topics.map((t) => (
@@ -292,13 +333,29 @@ const TeacherDashboard = ({ setActiveTab }) => {
               ))}
             </select>
           </Col>
-          <Col lg={3} md={6}>
+          <Col lg={2} md={4}>
+            <div className="small fw-semibold text-secondary mb-1">Filter by Test Type</div>
+            <select
+              className="form-select border-light-subtle rounded-pill shadow-sm"
+              value={filters.testType}
+              onChange={(e) => {
+                setFilters({ ...filters, testType: e.target.value, examId: "All" });
+              }}
+              style={{ fontSize: "13px", padding: "10px 15px" }}
+            >
+              <option value="All">All Types</option>
+              <option value="quiz">Quizzes Only</option>
+              <option value="practice">Practice Only</option>
+              <option value="minitest">Mini Tests Only</option>
+            </select>
+          </Col>
+          <Col lg={3} md={4}>
             <div className="small fw-semibold text-secondary mb-1">Filter by Exam</div>
             <select
               className="form-select border-light-subtle rounded-pill shadow-sm"
               value={filters.examId}
               onChange={(e) => setFilters({ ...filters, examId: e.target.value })}
-              style={{ fontSize: "14px", padding: "10px 15px" }}
+              style={{ fontSize: "13px", padding: "10px 15px" }}
             >
               <option value="All">All Exams</option>
               {availableExamsForFilter.map((e) => (
@@ -306,35 +363,35 @@ const TeacherDashboard = ({ setActiveTab }) => {
               ))}
             </select>
           </Col>
-          <Col lg={2} md={6} xs={6}>
+          <Col lg={2} md={4} xs={6}>
             <div className="small fw-semibold text-secondary mb-1">From Date</div>
             <input
               type="date"
               className="form-control border-light-subtle rounded-pill shadow-sm"
               value={filters.dateFrom}
               onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
-              style={{ fontSize: "14px", padding: "8px 15px" }}
+              style={{ fontSize: "13px", padding: "8px 15px" }}
             />
           </Col>
-          <Col lg={2} md={6} xs={6}>
+          <Col lg={2} md={4} xs={6}>
             <div className="small fw-semibold text-secondary mb-1">To Date</div>
             <input
               type="date"
               className="form-control border-light-subtle rounded-pill shadow-sm"
               value={filters.dateTo}
               onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
-              style={{ fontSize: "14px", padding: "8px 15px" }}
+              style={{ fontSize: "13px", padding: "8px 15px" }}
             />
           </Col>
-          <Col lg={2} md={12} className="text-lg-end text-center">
+          <Col lg={1} md={4} className="text-lg-end text-center">
             <Button
               variant="outline-secondary"
-              className="rounded-pill px-4 py-2 fw-bold w-100 shadow-sm"
-              onClick={() => setFilters({ topicId: "All", examId: "All", dateFrom: "", dateTo: "" })}
-              style={{ fontSize: "14px" }}
+              className="rounded-pill px-2 py-2 fw-bold w-100 shadow-sm"
+              onClick={() => setFilters({ topicId: "All", examId: "All", testType: "All", dateFrom: "", dateTo: "" })}
+              style={{ fontSize: "12px" }}
               disabled={!isFiltered}
             >
-              Reset Filters
+              Reset
             </Button>
           </Col>
         </Row>
@@ -350,7 +407,8 @@ const TeacherDashboard = ({ setActiveTab }) => {
             color: "#6366f1",
             bg: "linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(99, 102, 241, 0.02))",
             border: "1px solid rgba(99, 102, 241, 0.2)",
-            desc: isFiltered ? "Students in filtered results" : "Active student accounts"
+            desc: isFiltered ? "Students matching current filter" : "Active student accounts",
+            breakdown: null
           },
           {
             title: isFiltered ? "Filtered Attempts" : "Total Attempts",
@@ -359,7 +417,8 @@ const TeacherDashboard = ({ setActiveTab }) => {
             color: "#10b981",
             bg: "linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.02))",
             border: "1px solid rgba(16, 185, 129, 0.2)",
-            desc: isFiltered ? "Attempts matching filter" : "Quizzes/exams completed"
+            desc: "Quizzes/exams completed",
+            breakdown: `Quiz: ${attemptsBreakdown.quiz} | Prac: ${attemptsBreakdown.practice} | Mini: ${attemptsBreakdown.minitest}`
           },
           {
             title: isFiltered ? "Filtered Exams" : "Active Exams",
@@ -368,7 +427,8 @@ const TeacherDashboard = ({ setActiveTab }) => {
             color: "#f59e0b",
             bg: "linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.02))",
             border: "1px solid rgba(245, 158, 11, 0.2)",
-            desc: isFiltered ? "Exams in filtered topic" : "Tests & practice models"
+            desc: "Tests & practice models",
+            breakdown: `Quiz: ${examsBreakdown.quiz} | Prac: ${examsBreakdown.practice} | Mini: ${examsBreakdown.minitest}`
           },
           {
             title: isFiltered ? "Filtered Questions" : "Question Bank",
@@ -377,7 +437,8 @@ const TeacherDashboard = ({ setActiveTab }) => {
             color: "#ec4899",
             bg: "linear-gradient(135deg, rgba(236, 72, 153, 0.1), rgba(236, 72, 153, 0.02))",
             border: "1px solid rgba(236, 72, 153, 0.2)",
-            desc: isFiltered ? "Questions in filtered topic" : "Curriculum questions"
+            desc: "Curriculum questions",
+            breakdown: null
           }
         ].map((card, index) => (
           <Col md={3} sm={6} className="mb-3" key={index}>
@@ -387,22 +448,21 @@ const TeacherDashboard = ({ setActiveTab }) => {
                 borderRadius: "18px", 
                 background: card.bg, 
                 border: card.border,
-                transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
               }}
             >
               <Card.Body className="d-flex flex-column justify-content-between p-4">
                 <div className="d-flex align-items-center justify-content-between mb-3">
                   <div 
                     style={{ 
-                      width: "48px", 
-                      height: "48px", 
-                      borderRadius: "14px", 
+                      width: "44px", 
+                      height: "44px", 
+                      borderRadius: "12px", 
                       backgroundColor: card.color, 
                       color: "white", 
                       display: "flex", 
                       alignItems: "center", 
                       justifyContent: "center",
-                      fontSize: "20px",
+                      fontSize: "18px",
                       boxShadow: `0 4px 10px rgba(0,0,0,0.1)`
                     }}
                   >
@@ -416,12 +476,17 @@ const TeacherDashboard = ({ setActiveTab }) => {
                   <h6 className="text-muted fw-bold text-uppercase mb-1" style={{ fontSize: "11px", letterSpacing: "1px" }}>
                     {card.title}
                   </h6>
-                  <h2 className="fw-extrabold m-0 text-dark" style={{ fontSize: "2.2rem" }}>
+                  <h2 className="fw-extrabold m-0 text-dark" style={{ fontSize: "2.1rem" }}>
                     {card.value}
                   </h2>
                   <p className="text-muted small m-0 mt-2">
                     {card.desc}
                   </p>
+                  {card.breakdown && (
+                    <div className="mt-2 pt-2 border-top text-muted" style={{ fontSize: "10px", fontWeight: "600" }}>
+                      {card.breakdown}
+                    </div>
+                  )}
                 </div>
               </Card.Body>
             </Card>
@@ -429,60 +494,7 @@ const TeacherDashboard = ({ setActiveTab }) => {
         ))}
       </Row>
 
-      {/* QUICK ACTIONS GRID */}
-      <h5 className="fw-bold mb-3 mt-4 text-secondary d-flex align-items-center">
-        <FaPlusCircle className="me-2 text-primary" /> Quick Management Tools
-      </h5>
-      <Row className="mb-4">
-        {[
-          { title: "Manage Exams", action: "exams", desc: "Compile new tests & quizzes", icon: <FaFileAlt />, color: "#8b5cf6" },
-          { title: "Question Bank", action: "questions", desc: "Create, view & import questions", icon: <FaQuestionCircle />, color: "#3b82f6" },
-          { title: "Topic Categories", action: "topics", desc: "Add vocabulary & grammar topics", icon: <FaBookOpen />, color: "#10b981" }
-        ].map((tool, idx) => (
-          <Col md={4} className="mb-3" key={idx}>
-            <Card 
-              className="border-0 p-3 shadow-soft align-items-center text-center h-100" 
-              style={{ 
-                borderRadius: "16px", 
-                cursor: "pointer", 
-                backgroundColor: "white", 
-                border: "1px solid #e5e7eb",
-                transition: "all 0.2s"
-              }}
-              onClick={() => setActiveTab(tool.action)}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = tool.color;
-                e.currentTarget.style.transform = "scale(1.02)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = "#e5e7eb";
-                e.currentTarget.style.transform = "scale(1)";
-              }}
-            >
-              <div 
-                style={{ 
-                  width: "50px", 
-                  height: "50px", 
-                  borderRadius: "50%", 
-                  backgroundColor: `${tool.color}15`, 
-                  color: tool.color,
-                  display: "flex", 
-                  alignItems: "center", 
-                  justifyContent: "center",
-                  fontSize: "22px",
-                  marginBottom: "12px"
-                }}
-              >
-                {tool.icon}
-              </div>
-              <h6 className="fw-bold m-0 text-dark">{tool.title}</h6>
-              <p className="text-muted small m-0 mt-1">{tool.desc}</p>
-            </Card>
-          </Col>
-        ))}
-      </Row>
-
-      {/* MAIN GRAPH & RECENT SUBMISSIONS */}
+      {/* PERFORMANCE GRAPH & SUBMISSIONS SHARE DOUGHNUT */}
       <Row className="mb-4">
         {/* GRAPH COLUMN */}
         <Col lg={8} className="mb-4">
@@ -503,7 +515,7 @@ const TeacherDashboard = ({ setActiveTab }) => {
                 No attempt statistics match the current filter criteria.
               </div>
             ) : (
-              <div style={{ width: "100%", height: 350 }}>
+              <div style={{ width: "100%", height: 320 }}>
                 <ResponsiveContainer>
                   <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
                     <defs>
@@ -542,6 +554,139 @@ const TeacherDashboard = ({ setActiveTab }) => {
                 </ResponsiveContainer>
               </div>
             )}
+          </Card>
+        </Col>
+
+        {/* DOUGHNUT SHARE COLUMN */}
+        <Col lg={4} className="mb-4">
+          <Card className="border-0 shadow-sm p-4 h-100" style={{ borderRadius: "20px" }}>
+            <h5 className="fw-bold text-dark mb-1">Attempts Share</h5>
+            <p className="text-muted small mb-4">Breakdown of submissions by test type</p>
+            {doughnutData.length === 0 ? (
+              <div className="d-flex justify-content-center align-items-center h-100 text-muted min-vh-25">
+                No attempts recorded matching these filters.
+              </div>
+            ) : (
+              <div className="d-flex flex-column justify-content-center align-items-center h-100">
+                <div style={{ width: "100%", height: 180, position: "relative" }}>
+                  <ResponsiveContainer>
+                    <PieChart>
+                      <Pie
+                        data={doughnutData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {doughnutData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value) => [value, "Attempts"]} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  {/* Center Text */}
+                  <div style={{
+                    position: "absolute",
+                    top: "50%",
+                    left: "50%",
+                    transform: "translate(-50%, -50%)",
+                    textAlign: "center"
+                  }}>
+                    <h4 className="fw-extrabold m-0 text-dark">{filteredHistory.length}</h4>
+                    <small className="text-muted" style={{ fontSize: "10px", fontWeight: "600" }}>Total Attempts</small>
+                  </div>
+                </div>
+                <div className="d-flex justify-content-center flex-wrap gap-3 mt-4">
+                  {doughnutData.map((item, idx) => (
+                    <div key={idx} className="d-flex align-items-center" style={{ fontSize: "12px" }}>
+                      <div style={{ width: "12px", height: "12px", borderRadius: "3px", backgroundColor: item.color, marginRight: "6px" }} />
+                      <span className="text-secondary fw-semibold">{item.name}: </span>
+                      <strong className="text-dark ms-1">{item.value}</strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </Card>
+        </Col>
+      </Row>
+
+      {/* RECENT SUBMISSIONS TIMELINE & LEADERBOARD */}
+      <Row className="mb-4">
+        {/* RECENT SUBMISSIONS TABLE */}
+        <Col lg={8} className="mb-4">
+          <Card className="border-0 shadow-sm p-4 h-100" style={{ borderRadius: "20px" }}>
+            <div className="d-flex justify-content-between align-items-center mb-4">
+              <div>
+                <h5 className="fw-bold text-dark m-0">
+                  📑 Recent Student Submissions
+                  {isFiltered && <Badge bg="warning" className="ms-2 small fw-normal">Filtered View</Badge>}
+                </h5>
+                <p className="text-muted small m-0">Live log of exams/practice tests submitted by students</p>
+              </div>
+              <Button variant="outline-primary" size="sm" onClick={fetchStats} className="rounded-pill px-3 fw-bold">
+                Reload Feed
+              </Button>
+            </div>
+
+            <Table borderless hover responsive className="m-0 align-middle">
+              <thead>
+                <tr className="border-bottom text-muted" style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "1px" }}>
+                  <th className="pb-3">Student</th>
+                  <th className="pb-3">Exam Module</th>
+                  <th className="pb-3">Topic</th>
+                  <th className="pb-3">Submitted At</th>
+                  <th className="pb-3 text-center">Score</th>
+                  <th className="pb-3 text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentSubmissions.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" className="text-center text-muted py-4">No recent test attempts recorded match the filters.</td>
+                  </tr>
+                ) : (
+                  recentSubmissions.map((record, index) => {
+                    const topicName = record.examId?.topic?.name || 
+                      record.examId?.questions?.[0]?.topic?.name || 
+                      "N/A";
+                    return (
+                      <tr key={record._id || index} className="border-bottom-soft">
+                        <td className="py-3">
+                          <strong className="d-block text-dark small">{record.userId?.name || "Anonymous User"}</strong>
+                          <span className="text-muted" style={{ fontSize: "11px" }}>{record.userId?.email || ""}</span>
+                        </td>
+                        <td>
+                          <span className="fw-semibold text-primary small">{record.examId?.title || "Deleted/Archived Exam"}</span>
+                          <Badge bg={record.examId?.type === "practice" ? "info" : "warning"} className="ms-2 small" style={{ fontSize: "9px" }}>
+                            {record.examId?.type ? record.examId.type.toUpperCase() : "QUIZ"}
+                          </Badge>
+                        </td>
+                        <td>
+                          <Badge bg="secondary" className="bg-opacity-10 text-secondary border px-2 py-1" style={{ fontSize: "10px" }}>
+                            {topicName}
+                          </Badge>
+                        </td>
+                        <td className="text-muted small">
+                          {new Date(record.createdAt).toLocaleString()}
+                        </td>
+                        <td className="text-center font-monospace fw-bold small">
+                          {record.score} / {record.total}
+                        </td>
+                        <td className="text-center">
+                          <Badge bg={record.status === "PASSED" ? "success" : "danger"} className="px-3 py-2 rounded-pill" style={{ fontSize: "10px" }}>
+                            {record.status}
+                          </Badge>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </Table>
           </Card>
         </Col>
 
@@ -596,77 +741,58 @@ const TeacherDashboard = ({ setActiveTab }) => {
         </Col>
       </Row>
 
-      {/* RECENT SUBMISSIONS TIMELINE */}
-      <Card className="border-0 shadow-sm p-4 mb-4" style={{ borderRadius: "20px" }}>
-        <div className="d-flex justify-content-between align-items-center mb-4">
-          <div>
-            <h5 className="fw-bold text-dark m-0">
-              📑 Recent Student Submissions
-              {isFiltered && <Badge bg="warning" className="ms-2 small fw-normal">Filtered View</Badge>}
-            </h5>
-            <p className="text-muted small m-0">Live log of exams/practice tests submitted by students</p>
-          </div>
-          <Button variant="outline-primary" size="sm" onClick={fetchStats} className="rounded-pill px-3 fw-bold">
-            Reload Feed
-          </Button>
-        </div>
-
-        <Table borderless hover responsive className="m-0 align-middle">
-          <thead>
-            <tr className="border-bottom text-muted" style={{ fontSize: "12px", textTransform: "uppercase", letterSpacing: "1px" }}>
-              <th className="pb-3">Student</th>
-              <th className="pb-3">Exam Module</th>
-              <th className="pb-3">Topic</th>
-              <th className="pb-3">Submitted At</th>
-              <th className="pb-3 text-center">Score</th>
-              <th className="pb-3 text-center">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {recentSubmissions.length === 0 ? (
-              <tr>
-                <td colSpan="6" className="text-center text-muted py-4">No recent test attempts recorded match the filters.</td>
-              </tr>
-            ) : (
-              recentSubmissions.map((record, index) => {
-                const topicName = record.examId?.topic?.name || 
-                  record.examId?.questions?.[0]?.topic?.name || 
-                  "N/A";
-                return (
-                  <tr key={record._id || index} className="border-bottom-soft">
-                    <td className="py-3">
-                      <strong className="d-block text-dark">{record.userId?.name || "Anonymous User"}</strong>
-                      <span className="text-muted small">{record.userId?.email || ""}</span>
-                    </td>
-                    <td>
-                      <span className="fw-semibold text-primary">{record.examId?.title || "Deleted/Archived Exam"}</span>
-                      <Badge bg={record.examId?.type === "practice" ? "info" : "warning"} className="ms-2 small">
-                        {record.examId?.type ? record.examId.type.toUpperCase() : "QUIZ"}
-                      </Badge>
-                    </td>
-                    <td>
-                      <Badge bg="secondary" className="bg-opacity-10 text-secondary border px-2 py-1">
-                        {topicName}
-                      </Badge>
-                    </td>
-                    <td className="text-muted small">
-                      {new Date(record.createdAt).toLocaleString()}
-                    </td>
-                    <td className="text-center font-monospace fw-bold">
-                      {record.score} / {record.total}
-                    </td>
-                    <td className="text-center">
-                      <Badge bg={record.status === "PASSED" ? "success" : "danger"} className="px-3 py-2 rounded-pill">
-                        {record.status}
-                      </Badge>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </Table>
-      </Card>
+      {/* QUICK ACTIONS GRID */}
+      <h5 className="fw-bold mb-3 mt-2 text-secondary d-flex align-items-center">
+        <FaPlusCircle className="me-2 text-primary" /> Quick Management Tools
+      </h5>
+      <Row className="mb-4">
+        {[
+          { title: "Manage Exams", action: "exams", desc: "Compile new tests & quizzes", icon: <FaFileAlt />, color: "#8b5cf6" },
+          { title: "Question Bank", action: "questions", desc: "Create, view & import questions", icon: <FaQuestionCircle />, color: "#3b82f6" },
+          { title: "Topic Categories", action: "topics", desc: "Add vocabulary & grammar topics", icon: <FaBookOpen />, color: "#10b981" }
+        ].map((tool, idx) => (
+          <Col md={4} className="mb-3" key={idx}>
+            <Card 
+              className="border-0 p-3 shadow-soft align-items-center text-center h-100" 
+              style={{ 
+                borderRadius: "16px", 
+                cursor: "pointer", 
+                backgroundColor: "white", 
+                border: "1px solid #e5e7eb",
+                transition: "all 0.2s"
+              }}
+              onClick={() => setActiveTab(tool.action)}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = tool.color;
+                e.currentTarget.style.transform = "scale(1.02)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "#e5e7eb";
+                e.currentTarget.style.transform = "scale(1)";
+              }}
+            >
+              <div 
+                style={{ 
+                  width: "50px", 
+                  height: "50px", 
+                  borderRadius: "50%", 
+                  backgroundColor: `${tool.color}15`, 
+                  color: tool.color,
+                  display: "flex", 
+                  alignItems: "center", 
+                  justifyContent: "center",
+                  fontSize: "22px",
+                  marginBottom: "12px"
+                }}
+              >
+                {tool.icon}
+              </div>
+              <h6 className="fw-bold m-0 text-dark">{tool.title}</h6>
+              <p className="text-muted small m-0 mt-1">{tool.desc}</p>
+            </Card>
+          </Col>
+        ))}
+      </Row>
     </div>
   );
 };
