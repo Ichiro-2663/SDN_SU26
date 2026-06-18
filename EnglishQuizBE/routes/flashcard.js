@@ -1,13 +1,18 @@
 const express = require("express");
 const router = express.Router();
+const mongoose = require("mongoose");
 const Flashcard = require("../models/Flashcard");
 
 // GET ALL FOR A USER
 router.get("/user/:userId", async (req, res) => {
   try {
+    const { userId } = req.params;
+    if (!userId || userId === "null" || userId === "undefined" || !mongoose.Types.ObjectId.isValid(userId)) {
+      return res.json([]);
+    }
     const { topic } = req.query;
-    const filter = { userId: req.params.userId };
-    if (topic) {
+    const filter = { userId };
+    if (topic && topic !== "null" && topic !== "undefined" && mongoose.Types.ObjectId.isValid(topic)) {
       filter.topic = topic;
     }
     const cards = await Flashcard.find(filter).populate("topic");
