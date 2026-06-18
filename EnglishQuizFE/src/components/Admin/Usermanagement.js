@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { Table, Button, Badge } from "react-bootstrap";
+import { Table, Button, Badge, Form, Row, Col } from "react-bootstrap";
 
 const UserManagement = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [roleFilter, setRoleFilter] = useState("All");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   useEffect(() => {
     fetchUsers();
@@ -35,9 +38,29 @@ const UserManagement = () => {
 
   if (loading) return <p className="text-center mt-4">Loading users...</p>;
 
-  // Nhóm người dùng theo role
-  const usersByRole = users.reduce((acc, user) => {
-    const role = user.role || "USER";
+  // Áp filter role + ngày tạo (client-side)
+  const filteredUsers = users.filter((user) => {
+    // role
+    if (roleFilter !== "All" && user.role !== roleFilter) return false;
+
+    // createdAt
+    if (dateFrom) {
+      const from = new Date(dateFrom);
+      if (new Date(user.createdAt) < from) return false;
+    }
+    if (dateTo) {
+      const to = new Date(dateTo);
+      // include whole day
+      to.setHours(23, 59, 59, 999);
+      if (new Date(user.createdAt) > to) return false;
+    }
+
+    return true;
+  });
+
+  // Nhóm người dùng theo role từ danh sách đã lọc
+  const usersByRole = filteredUsers.reduce((acc, user) => {
+    const role = user.role || "Student";
     if (!acc[role]) acc[role] = [];
     acc[role].push(user);
     return acc;
@@ -46,6 +69,41 @@ const UserManagement = () => {
   return (
     <div className="p-4">
       <h4 className="fw-bold mb-4 text-primary">👥 User Management</h4>
+      <Form className="mb-4">
+        <Row className="g-2 align-items-end">
+          <Col md={3}>
+            <Form.Group>
+              <Form.Label>Role</Form.Label>
+              <Form.Select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
+                <option>All</option>
+                <option>Admin</option>
+                <option>Teacher</option>
+                <option>Student</option>
+              </Form.Select>
+            </Form.Group>
+          </Col>
+          <Col md={3}>
+            <Form.Group>
+              <Form.Label>From</Form.Label>
+              <Form.Control type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+            </Form.Group>
+          </Col>
+          <Col md={3}>
+            <Form.Group>
+              <Form.Label>To</Form.Label>
+              <Form.Control type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+            </Form.Group>
+          </Col>
+          <Col md={3} className="d-flex gap-2">
+            <Button variant="secondary" onClick={() => { setRoleFilter("All"); setDateFrom(""); setDateTo(""); }}>
+              Reset
+            </Button>
+            <Button variant="primary" onClick={() => fetchUsers()}>
+              Refresh
+            </Button>
+          </Col>
+        </Row>
+      </Form>
 
       {Object.keys(usersByRole).map((role) => (
         <div key={role} className="mb-4">
@@ -68,7 +126,7 @@ const UserManagement = () => {
                     <td className="fw-bold">{u.name}</td>
                     <td>{u.email}</td>
                     <td>
-                      <Badge bg={role === "ADMIN" ? "danger" : "primary"}>
+                      <Badge bg={role === "Admin" ? "danger" : role === "Teacher" ? "info" : "primary"}>
                         {role}
                       </Badge>
                     </td>
@@ -77,7 +135,7 @@ const UserManagement = () => {
                         variant="outline-danger"
                         size="sm"
                         onClick={() => handleDelete(u._id)}
-                        disabled={role === "ADMIN"} // Prevent deleting admins for safety
+                        disabled={role === "Admin"} // Prevent deleting admins for safety
                       >
                         Delete
                       </Button>
