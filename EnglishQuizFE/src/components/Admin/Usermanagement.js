@@ -25,10 +25,15 @@ const UserManagement = () => {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm("Are you sure you want to delete this user? This action cannot be undone.")) {
+  const handleToggleStatus = async (id, targetStatus) => {
+    const action = targetStatus === "Disabled" ? "disable" : "enable";
+    if (window.confirm(`Are you sure you want to ${action} this user?`)) {
       try {
-        await axios.delete(`http://localhost:9999/users/${id}`);
+        if (targetStatus === "Disabled") {
+          await axios.delete(`http://localhost:9999/users/${id}`);
+        } else {
+          await axios.put(`http://localhost:9999/users/${id}`, { status: "Active" });
+        }
         fetchUsers();
       } catch (err) {
         console.error(err);
@@ -115,6 +120,7 @@ const UserManagement = () => {
                 <th>Name</th>
                 <th>Email</th>
                 <th>Role</th>
+                <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -131,20 +137,36 @@ const UserManagement = () => {
                       </Badge>
                     </td>
                     <td>
-                      <Button
-                        variant="outline-danger"
-                        size="sm"
-                        onClick={() => handleDelete(u._id)}
-                        disabled={role === "Admin"} // Prevent deleting admins for safety
-                      >
-                        Delete
-                      </Button>
+                      <Badge bg={u.status === "Disabled" ? "secondary" : "success"}>
+                        {u.status || "Active"}
+                      </Badge>
+                    </td>
+                    <td>
+                      {u.status === "Disabled" ? (
+                        <Button
+                          variant="outline-success"
+                          size="sm"
+                          onClick={() => handleToggleStatus(u._id, "Active")}
+                          disabled={role === "Admin"}
+                        >
+                          Enable
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline-danger"
+                          size="sm"
+                          onClick={() => handleToggleStatus(u._id, "Disabled")}
+                          disabled={role === "Admin"}
+                        >
+                          Disable
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan="5" className="text-center text-muted">
+                  <td colSpan="6" className="text-center text-muted">
                     No users found
                   </td>
                 </tr>

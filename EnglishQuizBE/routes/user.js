@@ -53,16 +53,17 @@ router.put("/change-password/:id", async (req, res) => {
 // UPDATE USER
 router.put("/:id", async (req, res) => {
   try {
+    const updateFields = {};
+    const allowedFields = ["name", "email", "role", "age", "address", "school", "status"];
+    allowedFields.forEach((field) => {
+      if (req.body[field] !== undefined) {
+        updateFields[field] = req.body[field];
+      }
+    });
+
     const updated = await User.findByIdAndUpdate(
       req.params.id,
-      {
-        name: req.body.name,
-        email: req.body.email,
-        role: req.body.role,
-        age: req.body.age,
-        address: req.body.address,
-        school: req.body.school,
-      },
+      updateFields,
       { new: true }
     ).select("-password");
 
@@ -72,11 +73,18 @@ router.put("/:id", async (req, res) => {
   }
 });
 
-// DELETE USER
+// DISABLE USER (changed from DELETE)
 router.delete("/:id", async (req, res) => {
   try {
-    await User.findByIdAndDelete(req.params.id);
-    res.json({ message: "Deleted" });
+    const updated = await User.findByIdAndUpdate(
+      req.params.id,
+      { status: "Disabled" },
+      { new: true }
+    ).select("-password");
+    
+    if (!updated) return res.status(404).json({ message: "User not found" });
+    
+    res.json({ message: "Disabled", user: updated });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
