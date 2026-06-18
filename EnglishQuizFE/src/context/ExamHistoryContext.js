@@ -13,7 +13,7 @@ export const ExamHistoryProvider = ({ children }) => {
       const userId = localStorage.getItem("id");
 
       const res = await axios.get(
-        `http://localhost:9999/history/${userId}`
+        `http://localhost:9999/results/${userId}`
       );
 
       setHistory(res.data);
@@ -25,7 +25,7 @@ export const ExamHistoryProvider = ({ children }) => {
   // 🗑 Xóa kết quả
   const deleteResult = async (id) => {
     try {
-      await axios.delete(`http://localhost:9999/history/${id}`);
+      await axios.delete(`http://localhost:9999/results/${id}`);
       setHistory((prev) => prev.filter((h) => h._id !== id));
     } catch (err) {
       console.error("Delete result error:", err);

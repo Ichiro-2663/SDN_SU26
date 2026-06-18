@@ -4,7 +4,7 @@ import { FaBookmark, FaRegBookmark, FaLightbulb, FaVolumeUp } from "react-icons/
 import axios from "axios";
 import { AuthContext } from "../../context/AuthContext";
 
-const Quiz = ({ type = "quiz" }) => {
+const Quiz = () => {
   const { user } = useContext(AuthContext);
   const [exams, setExams] = useState([]);
   const [selectedExam, setSelectedExam] = useState(null);
@@ -27,7 +27,7 @@ const Quiz = ({ type = "quiz" }) => {
       try {
         setLoading(true);
         const res = await axios.get("http://localhost:9999/exams");
-        const quizExams = res.data.filter(e => e.type === type);
+        const quizExams = res.data.filter(e => e.type === "quiz");
         setExams(quizExams);
       } catch (err) {
         console.error(err);
@@ -75,7 +75,7 @@ const Quiz = ({ type = "quiz" }) => {
           userId,
           itemType: "Question",
           itemId: qId,
-          notes: "Saved during " + (selectedExam?.title || (type === "minitest" ? "Mini Test" : "Quiz"))
+          notes: "Saved during " + (selectedExam?.title || "Quiz")
         });
         setBookmarkedList({
           ...bookmarkedList,
@@ -200,7 +200,7 @@ const Quiz = ({ type = "quiz" }) => {
           &larr; Back to Quiz List
         </Button>
         <Card className="p-4 shadow text-center mb-4 border-warning">
-          <h3>🎉 {type === "minitest" ? "Mini Test" : "Quiz"} Result</h3>
+          <h3>🎉 Quiz Result</h3>
           <h4>{score} / {questions.length}</h4>
           <h5 className={score / questions.length >= 0.5 ? "text-success" : "text-danger"}>
             {score / questions.length >= 0.5 ? "PASSED" : "FAILED"}
@@ -474,7 +474,7 @@ const Quiz = ({ type = "quiz" }) => {
   return (
     <div className="w-100 p-2">
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h4 className="m-0 fw-bold">{type === "minitest" ? "Available Mini Tests" : "Available Quizzes"}</h4>
+        <h4 className="m-0 fw-bold">Available Quizzes</h4>
         <Form.Select style={{ width: "200px", borderRadius: "8px" }} value={filterLevel} onChange={e => setFilterLevel(e.target.value)}>
           <option value="All">All Levels</option>
           <option value="easy">Easy</option>
@@ -498,7 +498,7 @@ const Quiz = ({ type = "quiz" }) => {
                     <div><small className="text-muted">{exam.duration} Minutes</small></div>
                   </div>
                   <Button variant="warning" size="sm" className="mt-3 text-dark fw-bold" style={{ borderRadius: "20px" }} onClick={() => startQuiz(exam)}>
-                    {type === "minitest" ? "Start Mini Test" : "Start Quiz"}
+                    Start Quiz
                   </Button>
                 </Card.Body>
               </Card>

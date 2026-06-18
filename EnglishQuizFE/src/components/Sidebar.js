@@ -17,7 +17,7 @@ import {
 
 const Sidebar = ({ onToggle, onSelect, role = "user" }) => {
   const [isOpen, setIsOpen] = useState(true);
-  const [active, setActive] = useState(role === "admin" ? "users" : role === "teacher" ? "reports" : "dashboard");
+  const [active, setActive] = useState("dashboard");
 
   const toggleSidebar = () => {
     const newState = !isOpen;
@@ -30,7 +30,6 @@ const Sidebar = ({ onToggle, onSelect, role = "user" }) => {
       { key: "dashboard", name: "Dashboard", icon: <FaHome /> },
       { key: "practice", name: "Practice", icon: <FaBookOpen /> },
       { key: "quiz", name: "Take Quiz", icon: <FaPen /> },
-      { key: "minitest", name: "Mini Tests", icon: <FaFileAlt /> },
       { key: "flashcards", name: "Flashcards", icon: <FaClone /> },
       { key: "bookmarks", name: "Bookmarks", icon: <FaBookmark /> },
       { key: "history", name: "History", icon: <FaHistory /> },
@@ -41,7 +40,6 @@ const Sidebar = ({ onToggle, onSelect, role = "user" }) => {
       { key: "dashboard", name: "Dashboard", icon: <FaHome /> },
       { key: "practice", name: "Practice", icon: <FaBookOpen /> },
       { key: "quiz", name: "Take Quiz", icon: <FaPen /> },
-      { key: "minitest", name: "Mini Tests", icon: <FaFileAlt /> },
       { key: "flashcards", name: "Flashcards", icon: <FaClone /> },
       { key: "bookmarks", name: "Bookmarks", icon: <FaBookmark /> },
       { key: "history", name: "History", icon: <FaHistory /> },
@@ -50,13 +48,15 @@ const Sidebar = ({ onToggle, onSelect, role = "user" }) => {
 
     teacher: [
       { key: "reports", name: "Dashboard", icon: <FaTachometerAlt /> },
-      { key: "topics", name: "Topic Management", icon: <FaBookOpen /> },
       { key: "questions", name: "Question Bank", icon: <FaQuestionCircle /> },
       { key: "exams", name: "Exam Management", icon: <FaFileAlt /> },
     ],
 
     admin: [
+      { key: "reports", name: "Dashboard", icon: <FaTachometerAlt /> },
       { key: "users", name: "User Management", icon: <FaUsersCog /> },
+      { key: "questions", name: "Question Bank", icon: <FaQuestionCircle /> },
+      { key: "exams", name: "Exam Management", icon: <FaFileAlt /> },
     ],
   };
 

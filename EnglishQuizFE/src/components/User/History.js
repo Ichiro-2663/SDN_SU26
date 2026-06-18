@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useContext } from "react";
 import { Table, Badge, Card, Button, Row, Col } from "react-bootstrap";
-import { FaLightbulb } from "react-icons/fa";
 import axios from "axios";
 import { AuthContext } from "../../context/AuthContext";
 
@@ -94,123 +93,40 @@ const History = () => {
           </div>
         )}
         {selectedHistory.examId?.questions?.map((q, i) => {
-          if (!q || typeof q === "string") return null;
+          if (!q || typeof q === "string" || !q.options) return null;
           const userAnswerObj = selectedHistory.answers?.find(a => String(a.questionId) === String(q._id));
-          const userAns = userAnswerObj?.selectedAnswer;
-
-          let isQCorrect = false;
-          if (q.questionType === "MultipleChoice") {
-            const userAnsIndex = userAns !== undefined && userAns !== null ? parseInt(userAns, 10) : -1;
-            const correctAnsIndex = parseInt(q.correctAnswer, 10);
-            isQCorrect = userAnsIndex === correctAnsIndex;
-          } else if (q.questionType === "TrueFalse" || q.questionType === "FillInBlank") {
-            isQCorrect = userAns && String(userAns).trim().toLowerCase() === String(q.correctAnswer).trim().toLowerCase();
-          } else if (q.questionType === "Matching") {
-            isQCorrect = true;
-            let parsedUserAns;
-            try {
-              parsedUserAns = userAns ? JSON.parse(userAns) : null;
-            } catch (e) {
-              parsedUserAns = null;
-            }
-            if (!parsedUserAns || Object.keys(parsedUserAns).length < q.matchingPairs.length) {
-              isQCorrect = false;
-            } else {
-              q.matchingPairs.forEach((_, idx) => {
-                if (parsedUserAns[idx] !== idx) isQCorrect = false;
-              });
-            }
-          }
+          const userAnsIndex = userAnswerObj?.selectedAnswer !== undefined && userAnswerObj?.selectedAnswer !== null 
+            ? parseInt(userAnswerObj.selectedAnswer, 10) 
+            : -1;
+          const correctAnsIndex = parseInt(q.correctAnswer, 10);
 
           return (
-            <Card key={q._id} className={`p-3 mb-3 shadow-sm border-0 ${isQCorrect ? 'border-start border-success border-4' : 'border-start border-danger border-4'}`}>
-              <div className="d-flex justify-content-between mb-2">
-                <span className="fw-bold">Q{i + 1} ({q.questionType || "MultipleChoice"}): {q.content}</span>
-              </div>
-
-              {/* Multiple Choice Render */}
-              {q.questionType === "MultipleChoice" && q.options && (
-                <div className="ms-2">
-                  {q.options.map((opt, idx) => {
-                    const isCorrect = idx === parseInt(q.correctAnswer, 10);
-                    const isUser = userAns !== undefined && userAns !== null && parseInt(userAns, 10) === idx;
-                    return (
-                      <div
-                        key={idx}
-                        style={{
-                          padding: "6px",
-                          borderRadius: "6px",
-                          marginBottom: "4px",
-                          backgroundColor: isCorrect ? "#d1fae5" : isUser ? "#fee2e2" : "transparent",
-                        }}
-                      >
-                        {opt}
-                        {isCorrect && <Badge bg="success" className="ms-2">Correct</Badge>}
-                        {isUser && !isCorrect && <Badge bg="danger" className="ms-2">Your answer</Badge>}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* True/False Render */}
-              {q.questionType === "TrueFalse" && (
-                <div className="ms-2">
-                  <div className={`p-2 rounded mb-1 ${q.correctAnswer === "true" ? 'bg-success bg-opacity-10 text-success' : ''}`}>
-                    True {q.correctAnswer === "true" && <Badge bg="success" className="ms-2">Correct</Badge>}
-                    {userAns === "true" && <Badge bg="secondary" className="ms-2">Your Select</Badge>}
-                  </div>
-                  <div className={`p-2 rounded mb-1 ${q.correctAnswer === "false" ? 'bg-success bg-opacity-10 text-success' : ''}`}>
-                    False {q.correctAnswer === "false" && <Badge bg="success" className="ms-2">Correct</Badge>}
-                    {userAns === "false" && <Badge bg="secondary" className="ms-2">Your Select</Badge>}
-                  </div>
-                </div>
-              )}
-
-              {/* Fill in Blank Render */}
-              {q.questionType === "FillInBlank" && (
-                <div className="ms-2 p-2 bg-light rounded">
-                  <div>Correct Answer: <strong className="text-success">{q.correctAnswer}</strong></div>
-                  <div>Your Answer: <strong className={isQCorrect ? "text-success" : "text-danger"}>{userAns || "(blank)"}</strong></div>
-                </div>
-              )}
-
-              {/* Matching Render */}
-              {q.questionType === "Matching" && q.matchingPairs && (
-                <div className="ms-2 p-3 bg-light rounded">
-                  <strong className="d-block mb-2 text-primary">Correct Pairs:</strong>
-                  {q.matchingPairs.map((pair, idx) => (
-                    <div key={idx} className="small mb-1">
-                      <Badge bg="secondary">{pair.left}</Badge> &harr; <Badge bg="success">{pair.right}</Badge>
+            <Card key={q._id} className="p-3 mb-3 shadow-sm border-0">
+              <p className="fw-bold mb-2 text-dark">Q{i + 1}: {q.content}</p>
+              {q.options.map((opt, idx) => {
+                const isCorrect = idx === correctAnsIndex;
+                const isUser = idx === userAnsIndex;
+                return (
+                  <div
+                    key={idx}
+                    style={{
+                      padding: "10px",
+                      borderRadius: "8px",
+                      marginBottom: "6px",
+                      backgroundColor: isCorrect ? "#d1fae5" : (isUser ? "#fee2e2" : "#f8f9fa"),
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between"
+                    }}
+                  >
+                    <span>{opt}</span>
+                    <div>
+                      {isCorrect && <Badge bg="success" className="ms-2 shadow-sm">Correct Answer</Badge>}
+                      {isUser && !isCorrect && <Badge bg="danger" className="ms-2 shadow-sm">Your Answer</Badge>}
                     </div>
-                  ))}
-                  <strong className="d-block mt-3 mb-2 text-warning">Your Selections:</strong>
-                  {q.matchingPairs.map((pair, idx) => {
-                    let parsedUserAns;
-                    try {
-                      parsedUserAns = userAns ? JSON.parse(userAns) : null;
-                    } catch (e) {
-                      parsedUserAns = null;
-                    }
-                    const selRightIdx = parsedUserAns ? parsedUserAns[idx] : undefined;
-                    const selRightPair = selRightIdx !== undefined ? q.matchingPairs[selRightIdx] : null;
-                    return (
-                      <div key={idx} className="small mb-1">
-                        <Badge bg="secondary">{pair.left}</Badge> &harr;{" "}
-                        <Badge bg={selRightIdx === idx ? "success" : "danger"}>
-                          {selRightPair ? selRightPair.right : "(none)"}
-                        </Badge>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {q.explanation && (
-                <div className="mt-3 p-2 bg-info bg-opacity-10 text-info-emphasis rounded small">
-                  <FaLightbulb className="me-1"/> <strong>Explanation:</strong> {q.explanation}
-                </div>
-              )}
+                  </div>
+                );
+              })}
             </Card>
           );
         })}
@@ -225,9 +141,8 @@ const History = () => {
 
   const displayedHistory = history.filter(item => {
     if (filterType === "All") return true;
-    if (filterType === "Quiz" && item.examId?.type === "quiz") return true;
+    if (filterType === "Quiz" && item.examId?.type !== "practice") return true;
     if (filterType === "Practice" && item.examId?.type === "practice") return true;
-    if (filterType === "MiniTest" && item.examId?.type === "minitest") return true;
     return false;
   });
 
@@ -245,7 +160,6 @@ const History = () => {
           <option value="All">All Types</option>
           <option value="Quiz">Quizzes Only</option>
           <option value="Practice">Practice Only</option>
-          <option value="MiniTest">Mini Tests Only</option>
         </select>
       </div>
 
@@ -279,7 +193,7 @@ const History = () => {
               >
                 <td>{index + 1}</td>
                 <td>
-                   <Badge bg={item.examId?.type === 'practice' ? 'info' : item.examId?.type === 'minitest' ? 'success' : 'warning'}>
+                   <Badge bg={item.examId?.type === 'practice' ? 'info' : 'warning'}>
                      {item.examId?.type ? item.examId.type.toUpperCase() : 'QUIZ'}
                    </Badge>
                 </td>

@@ -61,27 +61,7 @@ const UserDashboard = ({ setActiveTab }) => {
           h.examId.questions.forEach(q => {
             // Check if correct
             const userAns = ansMap[q._id];
-            let isCorrect = false;
-            if (userAns !== undefined) {
-              if (q.questionType === "Matching" && q.matchingPairs) {
-                try {
-                  const parsedAns = JSON.parse(userAns);
-                  let allCorrect = true;
-                  if (!parsedAns || Object.keys(parsedAns).length < q.matchingPairs.length) {
-                    allCorrect = false;
-                  } else {
-                    q.matchingPairs.forEach((_, idx) => {
-                      if (parsedAns[idx] !== idx) allCorrect = false;
-                    });
-                  }
-                  isCorrect = allCorrect;
-                } catch (e) {
-                  isCorrect = false;
-                }
-              } else {
-                isCorrect = String(userAns).trim().toLowerCase() === String(q.correctAnswer).trim().toLowerCase();
-              }
-            }
+            const isCorrect = userAns !== undefined && String(userAns).trim().toLowerCase() === String(q.correctAnswer).trim().toLowerCase();
 
             if (q.skill && q.skill.name) {
               const sName = q.skill.name;

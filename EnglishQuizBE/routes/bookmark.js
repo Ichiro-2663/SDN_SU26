@@ -1,16 +1,11 @@
 const express = require("express");
 const router = express.Router();
-const mongoose = require("mongoose");
 const Bookmark = require("../models/Bookmark");
 
 // GET ALL BOOKMARKS FOR USER
 router.get("/user/:userId", async (req, res) => {
   try {
-    const { userId } = req.params;
-    if (!userId || userId === "null" || userId === "undefined" || !mongoose.Types.ObjectId.isValid(userId)) {
-      return res.json([]);
-    }
-    const bookmarks = await Bookmark.find({ userId })
+    const bookmarks = await Bookmark.find({ userId: req.params.userId })
       .populate({
         path: "itemId",
         populate: [
@@ -58,10 +53,6 @@ router.delete("/:id", async (req, res) => {
 router.get("/check", async (req, res) => {
   try {
     const { userId, itemId } = req.query;
-    if (!userId || userId === "null" || userId === "undefined" || !mongoose.Types.ObjectId.isValid(userId) ||
-        !itemId || itemId === "null" || itemId === "undefined" || !mongoose.Types.ObjectId.isValid(itemId)) {
-      return res.json({ bookmarked: false, bookmarkId: null });
-    }
     const bookmark = await Bookmark.findOne({ userId, itemId });
     res.json({ bookmarked: !!bookmark, bookmarkId: bookmark ? bookmark._id : null });
   } catch (err) {
