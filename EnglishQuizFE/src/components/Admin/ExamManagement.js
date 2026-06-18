@@ -158,7 +158,7 @@ const ExamManagement = () => {
             <tr key={exam._id}>
               <td>{idx + 1}</td>
               <td className="fw-bold">{exam.title}</td>
-              <td><Badge bg={exam.type === 'practice' ? 'info' : 'warning'} className="text-dark">{exam.type?.toUpperCase()}</Badge></td>
+              <td><Badge bg={exam.type === 'practice' ? 'info' : exam.type === 'minitest' ? 'success' : 'warning'} className="text-dark">{exam.type?.toUpperCase()}</Badge></td>
               <td><Badge bg="secondary">{exam.level}</Badge></td>
               <td>{exam.duration} mins</td>
               <td>{exam.questions?.length || 0}</td>
@@ -195,6 +195,7 @@ const ExamManagement = () => {
                   <Form.Select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})}>
                     <option value="quiz">QUIZ</option>
                     <option value="practice">PRACTICE</option>
+                    <option value="minitest">MINI TEST</option>
                   </Form.Select>
                 </Form.Group>
                 <Form.Group className="mb-4">
