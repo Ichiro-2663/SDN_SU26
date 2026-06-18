@@ -4,16 +4,20 @@ import Sidebar from "../components/Sidebar";
 
 import QuestionBank from "../components/Admin/QuestionBank";
 import ExamManagement from "../components/Admin/ExamManagement";
-import Reports from "../components/Admin/Reports";
+import TopicManagement from "../components/Admin/TopicManagement";
+import TeacherDashboard from "../components/Teacher/TeacherDashboard";
 
 const TeacherPage = () => {
-  const [selected, setSelected] = useState("reports");
+  const [selected, setSelected] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const renderContent = () => {
     switch (selected) {
-      case "reports":
-        return <Reports />;
+      case "dashboard":
+        return <TeacherDashboard setActiveTab={setSelected} />;
+
+      case "topics":
+        return <TopicManagement />;
 
       case "questions":
         return <QuestionBank />;
@@ -22,7 +26,7 @@ const TeacherPage = () => {
         return <ExamManagement />;
 
       default:
-        return <Reports />;
+        return <TeacherDashboard setActiveTab={setSelected} />;
     }
   };
 

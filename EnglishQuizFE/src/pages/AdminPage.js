@@ -2,33 +2,32 @@ import React, { useState } from "react";
 import Header from "../components/Header";
 import Sidebar from "../components/Sidebar";
 
-// 👉 Admin components (đổi tên cho đúng hệ thống quiz nếu cần)
+// 👉 Admin components
+import AdminDashboard from "../components/Admin/Admindashboard";
 import UserManagement from "../components/Admin/Usermanagement";
-import QuestionBank from "../components/Admin/QuestionBank";
-import ExamManagement from "../components/Admin/ExamManagement";
 import Reports from "../components/Admin/Reports";
+import SystemNotice from "../components/Admin/SystemNotice";
 
 const AdminPage = () => {
-  const [selected, setSelected] = useState("reports");
+  const [selected, setSelected] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const renderContent = () => {
     switch (selected) {
       case "dashboard":
-      case "reports":
-        return <Reports />;
+        return <AdminDashboard />;
 
       case "users":
         return <UserManagement />;
 
-      case "questions":
-        return <QuestionBank />;
+      case "reports":
+        return <Reports />;
 
-      case "exams":
-        return <ExamManagement />;
+      case "system":
+        return <SystemNotice />;
 
       default:
-        return <Reports />;
+        return <AdminDashboard />;
     }
   };
 
@@ -68,7 +67,7 @@ const AdminPage = () => {
           >
             <h2 style={{ margin: 0, fontWeight: "700" }}>Admin Dashboard</h2>
             <p style={{ margin: 0, opacity: 0.9 }}>
-              Manage system, users and reports
+              Manage user accounts and system permissions
             </p>
           </div>
 

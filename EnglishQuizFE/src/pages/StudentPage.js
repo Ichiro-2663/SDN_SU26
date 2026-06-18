@@ -27,6 +27,9 @@ const StudentPage = () => {
       case "quiz":
         return <Quiz />;
 
+      case "minitest":
+        return <Quiz type="minitest" />;
+
       case "history":
         return <History />;
 
