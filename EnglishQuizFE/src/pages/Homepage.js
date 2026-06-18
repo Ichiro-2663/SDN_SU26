@@ -10,7 +10,14 @@ const Homepage = () => {
 
   useEffect(() => {
     if (isAuthenticated && user) {
-      navigate("/student");
+      const role = (user.role || "").toUpperCase();
+      if (role === "ADMIN") {
+        navigate("/admin");
+      } else if (role === "TEACHER") {
+        navigate("/teacher");
+      } else {
+        navigate("/student");
+      }
     }
   }, [isAuthenticated, user, navigate]);
 

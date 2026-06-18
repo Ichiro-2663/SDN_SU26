@@ -17,7 +17,7 @@ import {
 
 const Sidebar = ({ onToggle, onSelect, role = "user" }) => {
   const [isOpen, setIsOpen] = useState(true);
-  const [active, setActive] = useState(role === "admin" ? "users" : role === "teacher" ? "reports" : "dashboard");
+  const [active, setActive] = useState(role === "admin" ? "dashboard" : role === "teacher" ? "reports" : "dashboard");
 
   const toggleSidebar = () => {
     const newState = !isOpen;
@@ -56,7 +56,10 @@ const Sidebar = ({ onToggle, onSelect, role = "user" }) => {
     ],
 
     admin: [
+      { key: "dashboard", name: "Dashboard", icon: <FaTachometerAlt /> },
       { key: "users", name: "User Management", icon: <FaUsersCog /> },
+      { key: "reports", name: "System Reports", icon: <FaChartPie /> },
+      { key: "system", name: "System Notice", icon: <FaFileAlt /> },
     ],
   };
 
