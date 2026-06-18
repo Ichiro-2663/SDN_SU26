@@ -1,6 +1,61 @@
 const express = require("express");
 const router = express.Router();
 const Exam = require("../models/Exam");
+const History = require("../models/History");
+
+// GET ADMIN STATS FOR DASHBOARD
+router.get("/stats", async (req, res) => {
+  try {
+    const totalExams = await Exam.countDocuments();
+    const totalAttempts = await History.countDocuments();
+
+    const exams = await Exam.find({}, "title type level duration createdAt").lean();
+
+    const historyGroups = await History.aggregate([
+      { $group: { _id: "$examId", attempts: { $sum: 1 }, averageScore: { $avg: "$score" } } }
+    ]);
+
+    const historyMap = new Map();
+    historyGroups.forEach((item) => {
+      if (item._id) {
+        historyMap.set(item._id.toString(), {
+          attempts: item.attempts,
+          averageScore: Math.round((item.averageScore || 0) * 100) / 100,
+        });
+      }
+    });
+
+    const examStats = exams.map((exam) => {
+      const examId = exam._id.toString();
+      const history = historyMap.get(examId) || { attempts: 0, averageScore: 0 };
+      return {
+        examId,
+        title: exam.title,
+        type: exam.type,
+        level: exam.level,
+        duration: exam.duration,
+        createdAt: exam.createdAt,
+        attempts: history.attempts,
+        averageScore: history.averageScore,
+      };
+    });
+
+    const chartData = {
+      labels: examStats.map((item) => item.title),
+      attempts: examStats.map((item) => item.attempts),
+      averageScores: examStats.map((item) => item.averageScore),
+    };
+
+    res.json({
+      totalExams,
+      totalAttempts,
+      examStats,
+      chartData,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
 
 // GET ALL
 router.get("/", async (req, res) => {
