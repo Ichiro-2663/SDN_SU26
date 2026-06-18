@@ -17,7 +17,13 @@ import {
 
 const Sidebar = ({ onToggle, onSelect, role = "user" }) => {
   const [isOpen, setIsOpen] = useState(true);
-  const [active, setActive] = useState(role === "admin" ? "dashboard" : role === "teacher" ? "reports" : "dashboard");
+  const [active, setActive] = useState(
+    role === "admin"
+      ? "dashboard"
+      : role === "teacher"
+        ? "reports"
+        : "dashboard",
+  );
 
   const toggleSidebar = () => {
     const newState = !isOpen;
@@ -49,7 +55,7 @@ const Sidebar = ({ onToggle, onSelect, role = "user" }) => {
     ],
 
     teacher: [
-      { key: "reports", name: "Dashboard", icon: <FaTachometerAlt /> },
+      { key: "dashboard", name: "Dashboard", icon: <FaTachometerAlt /> },
       { key: "topics", name: "Topic Management", icon: <FaBookOpen /> },
       { key: "questions", name: "Question Bank", icon: <FaQuestionCircle /> },
       { key: "exams", name: "Exam Management", icon: <FaFileAlt /> },
@@ -112,14 +118,11 @@ const Sidebar = ({ onToggle, onSelect, role = "user" }) => {
               borderRadius: "10px",
               marginBottom: "8px",
               cursor: "pointer",
-              background:
-                active === item.key ? "#E0F2FE" : "transparent",
+              background: active === item.key ? "#E0F2FE" : "transparent",
               color: active === item.key ? "#0284C7" : "#334155",
             }}
           >
-            <div style={{ width: "30px", fontSize: "18px" }}>
-              {item.icon}
-            </div>
+            <div style={{ width: "30px", fontSize: "18px" }}>{item.icon}</div>
             {isOpen && <span>{item.name}</span>}
           </div>
         ))}
