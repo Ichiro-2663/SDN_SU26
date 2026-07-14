@@ -21,4 +21,4 @@ app.use("/certificates", require("./routes/certificate"));
 app.use("/flashcards", require("./routes/flashcard"));
 app.use("/bookmarks", require("./routes/bookmark"));
 
-app.listen(9999, () => console.log("Server running on port 9999"));
+app.listen(9999, () => console.log("Server running on port : http://localhost:9999"));
