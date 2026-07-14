@@ -23,14 +23,17 @@ router.get("/:userId", async (req, res) => {
     const data = await History.find({ userId })
       .populate({
         path: "examId",
-        populate: {
-          path: "questions",
-          populate: [
-            { path: "topic" },
-            { path: "skill" },
-            { path: "certificate" }
-          ]
-        }
+        populate: [
+          {
+            path: "questions",
+            populate: [
+              { path: "topic" },
+              { path: "skill" },
+              { path: "certificate" }
+            ]
+          },
+          { path: "topic" }
+        ]
       });
     res.json(data);
   } catch (err) {
@@ -45,14 +48,17 @@ router.get("/", async (req, res) => {
       .populate("userId")
       .populate({
         path: "examId",
-        populate: {
-          path: "questions",
-          populate: [
-            { path: "topic" },
-            { path: "skill" },
-            { path: "certificate" }
-          ]
-        }
+        populate: [
+          {
+            path: "questions",
+            populate: [
+              { path: "topic" },
+              { path: "skill" },
+              { path: "certificate" }
+            ]
+          },
+          { path: "topic" }
+        ]
       });
     res.json(data);
   } catch (err) {

@@ -9,7 +9,8 @@ import {
   FaTrophy, 
   FaPlusCircle, 
   FaChartLine,
-  FaCalendarAlt
+  FaCalendarAlt,
+  FaFilter
 } from "react-icons/fa";
 import axios from "axios";
 import {
@@ -22,19 +23,28 @@ import {
   Tooltip,
   Legend,
   CartesianGrid,
+  PieChart,
+  Pie,
+  Cell,
 } from "recharts";
 
 const TeacherDashboard = ({ setActiveTab }) => {
-  const [stats, setStats] = useState({
-    totalUsers: 0,
-    totalQuestions: 0,
-    totalExams: 0,
-    totalHistory: 0,
-    topUsers: [],
-    recentSubmissions: [],
-    chartData: [],
-  });
   const [loading, setLoading] = useState(true);
+  const [rawData, setRawData] = useState({
+    users: [],
+    questions: [],
+    history: [],
+    exams: [],
+    topics: [],
+  });
+
+  const [filters, setFilters] = useState({
+    topicId: "All",
+    examId: "All",
+    testType: "All",
+    dateFrom: "",
+    dateTo: "",
+  });
 
   // Lấy tên giáo viên từ localStorage
   const teacherName = JSON.parse(localStorage.getItem("user") || "{}").name || "Teacher";
@@ -46,60 +56,26 @@ const TeacherDashboard = ({ setActiveTab }) => {
   const fetchStats = async () => {
     try {
       setLoading(true);
-      const [usersRes, questionsRes, statsRes, historyRes] = await Promise.all([
+      const [usersRes, questionsRes, historyRes, topicsRes, examsRes] = await Promise.all([
         axios.get("http://localhost:9999/users"),
         axios.get("http://localhost:9999/questions"),
-        axios.get("http://localhost:9999/exams/stats"),
         axios.get("http://localhost:9999/history"),
+        axios.get("http://localhost:9999/topics"),
+        axios.get("http://localhost:9999/exams"),
       ]);
 
       const students = usersRes.data.filter((u) => u.role === "STUDENT" || u.role === "student" || (u.role !== "ADMIN" && u.role !== "TEACHER"));
       const history = historyRes.data || [];
+      const questions = questionsRes.data || [];
+      const exams = examsRes.data || [];
+      const topics = topicsRes.data || [];
 
-      // Tính toán học sinh tiêu biểu (Top Users)
-      const userPerformances = {};
-      history.forEach((h) => {
-        const uId = h.userId?._id;
-        const uName = h.userId?.name || "Unknown Student";
-        const email = h.userId?.email || "";
-        if (!uId) return;
-
-        if (!userPerformances[uId]) {
-          userPerformances[uId] = { id: uId, name: uName, email, examsTaken: 0, totalScore: 0, maxScorePossible: 0 };
-        }
-        userPerformances[uId].examsTaken += 1;
-        userPerformances[uId].totalScore += h.score || 0;
-        userPerformances[uId].maxScorePossible += h.total || 10;
-      });
-
-      const topUsers = Object.values(userPerformances)
-        .map(u => ({
-          ...u,
-          accuracyRate: Math.round((u.totalScore / u.maxScorePossible) * 100)
-        }))
-        .sort((a, b) => b.totalScore - a.totalScore)
-        .slice(0, 5);
-
-      // Lịch sử bài làm mới nhất (Recent submissions)
-      const recentSubmissions = history
-        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-        .slice(0, 5);
-
-      const examStats = statsRes.data.examStats || [];
-      const chartData = examStats.map((e) => ({
-        name: e.title,
-        attempts: e.attempts || 0,
-        averageScore: Math.round((e.averageScore || 0) * 10) / 10,
-      }));
-
-      setStats({
-        totalUsers: students.length || usersRes.data.filter(u => u.role !== "ADMIN").length,
-        totalQuestions: questionsRes.data.length,
-        totalExams: statsRes.data.totalExams || 0,
-        totalHistory: statsRes.data.totalAttempts || history.length,
-        topUsers,
-        recentSubmissions,
-        chartData,
+      setRawData({
+        users: students,
+        questions,
+        history,
+        exams,
+        topics,
       });
     } catch (err) {
       console.error("Failed to load teacher stats:", err);
@@ -107,6 +83,165 @@ const TeacherDashboard = ({ setActiveTab }) => {
       setLoading(false);
     }
   };
+
+  // --- REACTIVE FILTERING LOGIC ---
+
+  // 1. Filter Questions based on Topic
+  const filteredQuestions = rawData.questions.filter((q) => {
+    if (filters.topicId !== "All") {
+      const qTopicId = q.topic?._id || q.topic;
+      return qTopicId === filters.topicId;
+    }
+    return true;
+  });
+
+  // 2. Filter Exams based on Topic and Test Type
+  const filteredExams = rawData.exams.filter((e) => {
+    if (filters.topicId !== "All") {
+      const eTopicId = e.topic?._id || e.topic;
+      if (eTopicId !== filters.topicId) return false;
+    }
+    if (filters.testType !== "All") {
+      if (e.type !== filters.testType) return false;
+    }
+    return true;
+  });
+
+  // List of exams matching the current topic and test type selection (for the Exam dropdown)
+  const availableExamsForFilter = rawData.exams.filter((e) => {
+    if (filters.topicId !== "All") {
+      const eTopicId = e.topic?._id || e.topic;
+      if (eTopicId !== filters.topicId) return false;
+    }
+    if (filters.testType !== "All") {
+      if (e.type !== filters.testType) return false;
+    }
+    return true;
+  });
+
+  // 3. Filter History Attempts based on Topic, Exam, Test Type, and Date Range
+  const filteredHistory = rawData.history.filter((h) => {
+    // Topic Filter
+    if (filters.topicId !== "All") {
+      const examTopicId = h.examId?.topic?._id || h.examId?.topic;
+      if (examTopicId !== filters.topicId) {
+        const hasMatchingQuestionTopic = h.examId?.questions?.some(
+          (q) => (q.topic?._id || q.topic) === filters.topicId
+        );
+        if (!hasMatchingQuestionTopic) return false;
+      }
+    }
+    // Exam Filter
+    if (filters.examId !== "All") {
+      const hExamId = h.examId?._id || h.examId;
+      if (hExamId !== filters.examId) return false;
+    }
+    // Test Type Filter
+    if (filters.testType !== "All") {
+      const hType = h.examId?.type;
+      if (hType !== filters.testType) return false;
+    }
+    // Date Range Filter
+    if (filters.dateFrom) {
+      const fromDate = new Date(filters.dateFrom);
+      fromDate.setHours(0, 0, 0, 0);
+      if (new Date(h.createdAt) < fromDate) return false;
+    }
+    if (filters.dateTo) {
+      const toDate = new Date(filters.dateTo);
+      toDate.setHours(23, 59, 59, 999);
+      if (new Date(h.createdAt) > toDate) return false;
+    }
+    return true;
+  });
+
+  // 4. Compute unique students participating in filtered attempts
+  const activeStudentIds = new Set(filteredHistory.map((h) => h.userId?._id).filter(Boolean));
+  const activeStudentsCount = 
+    filters.topicId === "All" && filters.examId === "All" && filters.testType === "All" && !filters.dateFrom && !filters.dateTo
+      ? rawData.users.length
+      : activeStudentIds.size;
+
+  // --- BREAKDOWNS BY TEST TYPE ---
+
+  // Count attempts by type in current filtered view
+  const attemptsBreakdown = { quiz: 0, practice: 0, minitest: 0 };
+  filteredHistory.forEach((h) => {
+    const type = h.examId?.type || "quiz";
+    if (attemptsBreakdown[type] !== undefined) {
+      attemptsBreakdown[type]++;
+    }
+  });
+
+  // Count exams by type in current filtered view
+  const examsBreakdown = { quiz: 0, practice: 0, minitest: 0 };
+  filteredExams.forEach((e) => {
+    const type = e.type || "quiz";
+    if (examsBreakdown[type] !== undefined) {
+      examsBreakdown[type]++;
+    }
+  });
+
+  // Doughnut Chart Data (Attempts share)
+  const doughnutData = [
+    { name: "Quiz", value: attemptsBreakdown.quiz, color: "#6366f1" },
+    { name: "Practice", value: attemptsBreakdown.practice, color: "#10b981" },
+    { name: "Mini Test", value: attemptsBreakdown.minitest, color: "#f59e0b" },
+  ].filter(item => item.value > 0);
+
+  // --- STATS COMPUTATION FOR UI ---
+
+  // Recharts Chart Data (Attempts & Avg Scores grouped by Exam)
+  const examPerformanceMap = {};
+  filteredHistory.forEach((h) => {
+    const examId = h.examId?._id;
+    const examTitle = h.examId?.title || "Unknown Exam";
+    if (!examId) return;
+
+    if (!examPerformanceMap[examId]) {
+      examPerformanceMap[examId] = { name: examTitle, attempts: 0, totalScore: 0, totalQuestions: 0 };
+    }
+    examPerformanceMap[examId].attempts += 1;
+    examPerformanceMap[examId].totalScore += h.score || 0;
+    examPerformanceMap[examId].totalQuestions += h.total || 10;
+  });
+
+  const chartData = Object.values(examPerformanceMap).map((item) => ({
+    name: item.name,
+    attempts: item.attempts,
+    averageScore: item.attempts > 0 ? Math.round((item.totalScore / item.attempts) * 10) / 10 : 0,
+  }));
+
+  // Top Performing Students
+  const userPerformances = {};
+  filteredHistory.forEach((h) => {
+    const uId = h.userId?._id;
+    const uName = h.userId?.name || "Unknown Student";
+    const email = h.userId?.email || "";
+    if (!uId) return;
+
+    if (!userPerformances[uId]) {
+      userPerformances[uId] = { id: uId, name: uName, email, examsTaken: 0, totalScore: 0, maxScorePossible: 0 };
+    }
+    userPerformances[uId].examsTaken += 1;
+    userPerformances[uId].totalScore += h.score || 0;
+    userPerformances[uId].maxScorePossible += h.total || 10;
+  });
+
+  const topUsers = Object.values(userPerformances)
+    .map((u) => ({
+      ...u,
+      accuracyRate: Math.round((u.totalScore / u.maxScorePossible) * 100),
+    }))
+    .sort((a, b) => b.totalScore - a.totalScore)
+    .slice(0, 5);
+
+  // Recent Submissions List
+  const recentSubmissions = [...filteredHistory]
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .slice(0, 5);
+
+  const isFiltered = filters.topicId !== "All" || filters.examId !== "All" || filters.testType !== "All" || filters.dateFrom || filters.dateTo;
 
   const getInitials = (name) => {
     return name
@@ -152,7 +287,7 @@ const TeacherDashboard = ({ setActiveTab }) => {
           position: "relative",
           overflow: "hidden",
           boxShadow: "0 10px 30px rgba(99, 102, 241, 0.25)",
-          marginBottom: "35px",
+          marginBottom: "30px",
         }}
       >
         <div style={{ position: "relative", zIndex: 2 }}>
@@ -167,102 +302,191 @@ const TeacherDashboard = ({ setActiveTab }) => {
           </p>
         </div>
         
-        {/* Abstract floating circles for premium design */}
         <div style={{ position: "absolute", right: "-50px", top: "-50px", width: "220px", height: "220px", borderRadius: "50%", background: "rgba(255,255,255,0.1)", zIndex: 1 }} />
         <div style={{ position: "absolute", right: "80px", bottom: "-80px", width: "180px", height: "180px", borderRadius: "50%", background: "rgba(255,255,255,0.06)", zIndex: 1 }} />
       </div>
+
+      {/* FILTER CONTROL BAR */}
+      <Card className="border-0 shadow-sm p-4 mb-4" style={{ borderRadius: "20px", backgroundColor: "white", border: "1px solid #f1f5f9" }}>
+        <h6 className="fw-bold text-dark mb-3 d-flex align-items-center">
+          <FaFilter className="me-2 text-primary" /> Filter Dashboard Analytics
+          {isFiltered && (
+            <Badge bg="primary" className="ms-2 px-2 py-1 rounded-pill" style={{ fontSize: "10px" }}>
+              Active Filters
+            </Badge>
+          )}
+        </h6>
+        <Row className="g-3 align-items-end">
+          <Col lg={2} md={4}>
+            <div className="small fw-semibold text-secondary mb-1">Filter by Topic</div>
+            <select
+              className="form-select border-light-subtle rounded-pill shadow-sm"
+              value={filters.topicId}
+              onChange={(e) => {
+                setFilters({ ...filters, topicId: e.target.value, examId: "All" });
+              }}
+              style={{ fontSize: "13px", padding: "10px 15px" }}
+            >
+              <option value="All">All Topics</option>
+              {rawData.topics.map((t) => (
+                <option key={t._id} value={t._id}>{t.name}</option>
+              ))}
+            </select>
+          </Col>
+          <Col lg={2} md={4}>
+            <div className="small fw-semibold text-secondary mb-1">Filter by Test Type</div>
+            <select
+              className="form-select border-light-subtle rounded-pill shadow-sm"
+              value={filters.testType}
+              onChange={(e) => {
+                setFilters({ ...filters, testType: e.target.value, examId: "All" });
+              }}
+              style={{ fontSize: "13px", padding: "10px 15px" }}
+            >
+              <option value="All">All Types</option>
+              <option value="quiz">Quizzes Only</option>
+              <option value="practice">Practice Only</option>
+              <option value="minitest">Mini Tests Only</option>
+            </select>
+          </Col>
+          <Col lg={3} md={4}>
+            <div className="small fw-semibold text-secondary mb-1">Filter by Exam</div>
+            <select
+              className="form-select border-light-subtle rounded-pill shadow-sm"
+              value={filters.examId}
+              onChange={(e) => setFilters({ ...filters, examId: e.target.value })}
+              style={{ fontSize: "13px", padding: "10px 15px" }}
+            >
+              <option value="All">All Exams</option>
+              {availableExamsForFilter.map((e) => (
+                <option key={e._id} value={e._id}>{e.title}</option>
+              ))}
+            </select>
+          </Col>
+          <Col lg={2} md={4} xs={6}>
+            <div className="small fw-semibold text-secondary mb-1">From Date</div>
+            <input
+              type="date"
+              className="form-control border-light-subtle rounded-pill shadow-sm"
+              value={filters.dateFrom}
+              onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
+              style={{ fontSize: "13px", padding: "8px 15px" }}
+            />
+          </Col>
+          <Col lg={2} md={4} xs={6}>
+            <div className="small fw-semibold text-secondary mb-1">To Date</div>
+            <input
+              type="date"
+              className="form-control border-light-subtle rounded-pill shadow-sm"
+              value={filters.dateTo}
+              onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
+              style={{ fontSize: "13px", padding: "8px 15px" }}
+            />
+          </Col>
+          <Col lg={1} md={4} className="text-lg-end text-center">
+            <Button
+              variant="outline-secondary"
+              className="rounded-pill px-2 py-2 fw-bold w-100 shadow-sm"
+              onClick={() => setFilters({ topicId: "All", examId: "All", testType: "All", dateFrom: "", dateTo: "" })}
+              style={{ fontSize: "12px" }}
+              disabled={!isFiltered}
+            >
+              Reset
+            </Button>
+          </Col>
+        </Row>
+      </Card>
 
       {/* METRIC CARD WIDGETS */}
       <Row className="mb-4">
         {[
           {
-            title: "Total Students",
-            value: stats.totalUsers,
+            title: isFiltered ? "Active Students" : "Total Students",
+            value: activeStudentsCount,
             icon: <FaUsers />,
             color: "#6366f1",
             bg: "linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(99, 102, 241, 0.02))",
             border: "1px solid rgba(99, 102, 241, 0.2)",
-            desc: "Active student accounts"
+            desc: isFiltered ? "Students matching current filter" : "Active student accounts",
+            breakdown: null
           },
           {
-            title: "Total Attempts",
-            value: stats.totalHistory,
+            title: isFiltered ? "Filtered Attempts" : "Total Attempts",
+            value: filteredHistory.length,
             icon: <FaClipboardList />,
             color: "#10b981",
             bg: "linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.02))",
             border: "1px solid rgba(16, 185, 129, 0.2)",
-            desc: "Quizzes/exams completed"
+            desc: "Quizzes/exams completed",
+            breakdown: `Quiz: ${attemptsBreakdown.quiz} | Prac: ${attemptsBreakdown.practice} | Mini: ${attemptsBreakdown.minitest}`
           },
           {
-            title: "Active Exams",
-            value: stats.totalExams,
+            title: isFiltered ? "Filtered Exams" : "Active Exams",
+            value: filteredExams.length,
             icon: <FaFileAlt />,
             color: "#f59e0b",
             bg: "linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.02))",
             border: "1px solid rgba(245, 158, 11, 0.2)",
-            desc: "Tests & practice models"
+            desc: "Tests & practice models",
+            breakdown: `Quiz: ${examsBreakdown.quiz} | Prac: ${examsBreakdown.practice} | Mini: ${examsBreakdown.minitest}`
           },
           {
-            title: "Question Bank",
-            value: stats.totalQuestions,
+            title: isFiltered ? "Filtered Questions" : "Question Bank",
+            value: filteredQuestions.length,
             icon: <FaQuestionCircle />,
             color: "#ec4899",
             bg: "linear-gradient(135deg, rgba(236, 72, 153, 0.1), rgba(236, 72, 153, 0.02))",
             border: "1px solid rgba(236, 72, 153, 0.2)",
-            desc: "Curriculum questions"
+            desc: "Curriculum questions",
+            breakdown: null
           }
         ].map((card, index) => (
           <Col md={3} sm={6} className="mb-3" key={index}>
             <Card 
-              className="border-0 h-100 shadow-sm transition-hover" 
+              className="border-0 h-100 shadow-sm" 
               style={{ 
                 borderRadius: "18px", 
                 background: card.bg, 
                 border: card.border,
-                transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                cursor: "pointer"
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = "translateY(-5px)";
-                e.currentTarget.style.boxShadow = `0 12px 20px rgba(0,0,0,0.08)`;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow = "none";
               }}
             >
               <Card.Body className="d-flex flex-column justify-content-between p-4">
                 <div className="d-flex align-items-center justify-content-between mb-3">
                   <div 
                     style={{ 
-                      width: "48px", 
-                      height: "48px", 
-                      borderRadius: "14px", 
+                      width: "44px", 
+                      height: "44px", 
+                      borderRadius: "12px", 
                       backgroundColor: card.color, 
                       color: "white", 
                       display: "flex", 
                       alignItems: "center", 
                       justifyContent: "center",
-                      fontSize: "20px",
+                      fontSize: "18px",
                       boxShadow: `0 4px 10px rgba(0,0,0,0.1)`
                     }}
                   >
                     {card.icon}
                   </div>
                   <Badge pill bg="light" className="text-secondary border small">
-                    Overview
+                    {isFiltered ? "Filtered" : "Overview"}
                   </Badge>
                 </div>
                 <div>
                   <h6 className="text-muted fw-bold text-uppercase mb-1" style={{ fontSize: "11px", letterSpacing: "1px" }}>
                     {card.title}
                   </h6>
-                  <h2 className="fw-extrabold m-0 text-dark" style={{ fontSize: "2.2rem" }}>
+                  <h2 className="fw-extrabold m-0 text-dark" style={{ fontSize: "2.1rem" }}>
                     {card.value}
                   </h2>
                   <p className="text-muted small m-0 mt-2">
                     {card.desc}
                   </p>
+                  {card.breakdown && (
+                    <div className="mt-2 pt-2 border-top text-muted" style={{ fontSize: "10px", fontWeight: "600" }}>
+                      {card.breakdown}
+                    </div>
+                  )}
                 </div>
               </Card.Body>
             </Card>
@@ -270,8 +494,255 @@ const TeacherDashboard = ({ setActiveTab }) => {
         ))}
       </Row>
 
+      {/* PERFORMANCE GRAPH & SUBMISSIONS SHARE DOUGHNUT */}
+      <Row className="mb-4">
+        {/* GRAPH COLUMN */}
+        <Col lg={8} className="mb-4">
+          <Card className="border-0 shadow-sm p-4 h-100" style={{ borderRadius: "20px" }}>
+            <div className="d-flex align-items-center justify-content-between mb-4">
+              <div>
+                <h5 className="fw-bold text-dark m-0">
+                  <FaChartLine className="me-2 text-primary" /> Exam Attempts & Performance
+                  {isFiltered && <Badge bg="warning" className="ms-2 small fw-normal">Filtered View</Badge>}
+                </h5>
+                <p className="text-muted small m-0">Average correct ratios mapped against submission count</p>
+              </div>
+              <FaCalendarAlt className="text-muted" />
+            </div>
+
+            {chartData.length === 0 ? (
+              <div className="d-flex justify-content-center align-items-center h-100 text-muted min-vh-25">
+                No attempt statistics match the current filter criteria.
+              </div>
+            ) : (
+              <div style={{ width: "100%", height: 320 }}>
+                <ResponsiveContainer>
+                  <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
+                    <defs>
+                      <linearGradient id="colorAttempts" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#818cf8" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#818cf8" stopOpacity={0.2}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <XAxis dataKey="name" stroke="#64748b" style={{ fontSize: "11px", fontWeight: "600" }} />
+                    <YAxis stroke="#64748b" style={{ fontSize: "11px" }} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        borderRadius: "12px", 
+                        border: "none", 
+                        boxShadow: "0 8px 30px rgba(0,0,0,0.12)" 
+                      }} 
+                    />
+                    <Legend />
+                    <Bar 
+                      dataKey="attempts" 
+                      name="Submissions" 
+                      fill="url(#colorAttempts)" 
+                      radius={[8, 8, 0, 0]} 
+                      barSize={40} 
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="averageScore" 
+                      name="Avg Correct Qs" 
+                      stroke="#ec4899" 
+                      strokeWidth={3}
+                      dot={{ r: 5, fill: "#ec4899", strokeWidth: 2 }}
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </Card>
+        </Col>
+
+        {/* DOUGHNUT SHARE COLUMN */}
+        <Col lg={4} className="mb-4">
+          <Card className="border-0 shadow-sm p-4 h-100" style={{ borderRadius: "20px" }}>
+            <h5 className="fw-bold text-dark mb-1">Attempts Share</h5>
+            <p className="text-muted small mb-4">Breakdown of submissions by test type</p>
+            {doughnutData.length === 0 ? (
+              <div className="d-flex justify-content-center align-items-center h-100 text-muted min-vh-25">
+                No attempts recorded matching these filters.
+              </div>
+            ) : (
+              <div className="d-flex flex-column justify-content-center align-items-center h-100">
+                <div style={{ width: "100%", height: 180, position: "relative" }}>
+                  <ResponsiveContainer>
+                    <PieChart>
+                      <Pie
+                        data={doughnutData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {doughnutData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value) => [value, "Attempts"]} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  {/* Center Text */}
+                  <div style={{
+                    position: "absolute",
+                    top: "50%",
+                    left: "50%",
+                    transform: "translate(-50%, -50%)",
+                    textAlign: "center"
+                  }}>
+                    <h4 className="fw-extrabold m-0 text-dark">{filteredHistory.length}</h4>
+                    <small className="text-muted" style={{ fontSize: "10px", fontWeight: "600" }}>Total Attempts</small>
+                  </div>
+                </div>
+                <div className="d-flex justify-content-center flex-wrap gap-3 mt-4">
+                  {doughnutData.map((item, idx) => (
+                    <div key={idx} className="d-flex align-items-center" style={{ fontSize: "12px" }}>
+                      <div style={{ width: "12px", height: "12px", borderRadius: "3px", backgroundColor: item.color, marginRight: "6px" }} />
+                      <span className="text-secondary fw-semibold">{item.name}: </span>
+                      <strong className="text-dark ms-1">{item.value}</strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </Card>
+        </Col>
+      </Row>
+
+      {/* RECENT SUBMISSIONS TIMELINE & LEADERBOARD */}
+      <Row className="mb-4">
+        {/* RECENT SUBMISSIONS TABLE */}
+        <Col lg={8} className="mb-4">
+          <Card className="border-0 shadow-sm p-4 h-100" style={{ borderRadius: "20px" }}>
+            <div className="d-flex justify-content-between align-items-center mb-4">
+              <div>
+                <h5 className="fw-bold text-dark m-0">
+                  📑 Recent Student Submissions
+                  {isFiltered && <Badge bg="warning" className="ms-2 small fw-normal">Filtered View</Badge>}
+                </h5>
+                <p className="text-muted small m-0">Live log of exams/practice tests submitted by students</p>
+              </div>
+              <Button variant="outline-primary" size="sm" onClick={fetchStats} className="rounded-pill px-3 fw-bold">
+                Reload Feed
+              </Button>
+            </div>
+
+            <Table borderless hover responsive className="m-0 align-middle">
+              <thead>
+                <tr className="border-bottom text-muted" style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "1px" }}>
+                  <th className="pb-3">Student</th>
+                  <th className="pb-3">Exam Module</th>
+                  <th className="pb-3">Topic</th>
+                  <th className="pb-3">Submitted At</th>
+                  <th className="pb-3 text-center">Score</th>
+                  <th className="pb-3 text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentSubmissions.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" className="text-center text-muted py-4">No recent test attempts recorded match the filters.</td>
+                  </tr>
+                ) : (
+                  recentSubmissions.map((record, index) => {
+                    const topicName = record.examId?.topic?.name || 
+                      record.examId?.questions?.[0]?.topic?.name || 
+                      "N/A";
+                    return (
+                      <tr key={record._id || index} className="border-bottom-soft">
+                        <td className="py-3">
+                          <strong className="d-block text-dark small">{record.userId?.name || "Anonymous User"}</strong>
+                          <span className="text-muted" style={{ fontSize: "11px" }}>{record.userId?.email || ""}</span>
+                        </td>
+                        <td>
+                          <span className="fw-semibold text-primary small">{record.examId?.title || "Deleted/Archived Exam"}</span>
+                          <Badge bg={record.examId?.type === "practice" ? "info" : "warning"} className="ms-2 small" style={{ fontSize: "9px" }}>
+                            {record.examId?.type ? record.examId.type.toUpperCase() : "QUIZ"}
+                          </Badge>
+                        </td>
+                        <td>
+                          <Badge bg="secondary" className="bg-opacity-10 text-secondary border px-2 py-1" style={{ fontSize: "10px" }}>
+                            {topicName}
+                          </Badge>
+                        </td>
+                        <td className="text-muted small">
+                          {new Date(record.createdAt).toLocaleString()}
+                        </td>
+                        <td className="text-center font-monospace fw-bold small">
+                          {record.score} / {record.total}
+                        </td>
+                        <td className="text-center">
+                          <Badge bg={record.status === "PASSED" ? "success" : "danger"} className="px-3 py-2 rounded-pill" style={{ fontSize: "10px" }}>
+                            {record.status}
+                          </Badge>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </Table>
+          </Card>
+        </Col>
+
+        {/* TOP STUDENTS COLUMN */}
+        <Col lg={4} className="mb-4">
+          <Card className="border-0 shadow-sm p-4 h-100" style={{ borderRadius: "20px" }}>
+            <h5 className="fw-bold text-dark mb-4">
+              <FaTrophy className="me-2 text-warning" /> Top Performing Students
+            </h5>
+            <div className="d-flex flex-column gap-3">
+              {topUsers.length === 0 ? (
+                <div className="text-center text-muted py-5">
+                  No active student records match the filters.
+                </div>
+              ) : (
+                topUsers.map((student) => (
+                  <div key={student.id} className="d-flex align-items-center justify-content-between p-2 rounded hover-light">
+                    <div className="d-flex align-items-center">
+                      <div 
+                        style={{ 
+                          width: "42px", 
+                          height: "42px", 
+                          borderRadius: "12px", 
+                          background: getRandomGradient(student.id),
+                          color: "white",
+                          fontWeight: "bold",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: "14px",
+                          marginRight: "12px"
+                        }}
+                      >
+                        {getInitials(student.name)}
+                      </div>
+                      <div>
+                        <strong className="d-block text-dark small">{student.name}</strong>
+                        <span className="text-muted" style={{ fontSize: "11px" }}>{student.examsTaken} attempts</span>
+                      </div>
+                    </div>
+                    <div className="text-end">
+                      <span className="badge bg-success bg-opacity-10 text-success fw-bold" style={{ fontSize: "12px" }}>
+                        {student.accuracyRate}% Acc
+                      </span>
+                      <small className="d-block text-muted mt-1" style={{ fontSize: "10px" }}>Score: {student.totalScore} Qs</small>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </Card>
+        </Col>
+      </Row>
+
       {/* QUICK ACTIONS GRID */}
-      <h5 className="fw-bold mb-3 mt-4 text-secondary d-flex align-items-center">
+      <h5 className="fw-bold mb-3 mt-2 text-secondary d-flex align-items-center">
         <FaPlusCircle className="me-2 text-primary" /> Quick Management Tools
       </h5>
       <Row className="mb-4">
@@ -322,173 +793,6 @@ const TeacherDashboard = ({ setActiveTab }) => {
           </Col>
         ))}
       </Row>
-
-      {/* MAIN GRAPH & RECENT SUBMISSIONS */}
-      <Row className="mb-4">
-        {/* GRAPH COLUMN */}
-        <Col lg={8} className="mb-4">
-          <Card className="border-0 shadow-sm p-4 h-100" style={{ borderRadius: "20px" }}>
-            <div className="d-flex align-items-center justify-content-between mb-4">
-              <div>
-                <h5 className="fw-bold text-dark m-0"><FaChartLine className="me-2 text-primary" /> Exam Attempts & Performance</h5>
-                <p className="text-muted small m-0">Average correct ratios mapped against submission count</p>
-              </div>
-              <FaCalendarAlt className="text-muted" />
-            </div>
-
-            {stats.chartData.length === 0 ? (
-              <div className="d-flex justify-content-center align-items-center h-100 text-muted">
-                No attempt statistics available. Create and publish exams first!
-              </div>
-            ) : (
-              <div style={{ width: "100%", height: 350 }}>
-                <ResponsiveContainer>
-                  <ComposedChart data={stats.chartData} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
-                    <defs>
-                      <linearGradient id="colorAttempts" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#818cf8" stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor="#818cf8" stopOpacity={0.2}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                    <XAxis dataKey="name" stroke="#64748b" style={{ fontSize: "11px", fontWeight: "600" }} />
-                    <YAxis stroke="#64748b" style={{ fontSize: "11px" }} />
-                    <Tooltip 
-                      contentStyle={{ 
-                        borderRadius: "12px", 
-                        border: "none", 
-                        boxShadow: "0 8px 30px rgba(0,0,0,0.12)" 
-                      }} 
-                    />
-                    <Legend />
-                    <Bar 
-                      dataKey="attempts" 
-                      name="Submissions" 
-                      fill="url(#colorAttempts)" 
-                      radius={[8, 8, 0, 0]} 
-                      barSize={40} 
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="averageScore" 
-                      name="Avg Correct Qs" 
-                      stroke="#ec4899" 
-                      strokeWidth={3}
-                      dot={{ r: 5, fill: "#ec4899", strokeWidth: 2 }}
-                    />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </Card>
-        </Col>
-
-        {/* TOP STUDENTS COLUMN */}
-        <Col lg={4} className="mb-4">
-          <Card className="border-0 shadow-sm p-4 h-100" style={{ borderRadius: "20px" }}>
-            <h5 className="fw-bold text-dark mb-4"><FaTrophy className="me-2 text-warning" /> Top Performing Students</h5>
-            <div className="d-flex flex-column gap-3">
-              {stats.topUsers.length === 0 ? (
-                <div className="text-center text-muted py-5">
-                  No active student records found.
-                </div>
-              ) : (
-                stats.topUsers.map((student, idx) => (
-                  <div key={student.id} className="d-flex align-items-center justify-content-between p-2 rounded hover-light" style={{ transition: "0.2s" }}>
-                    <div className="d-flex align-items-center">
-                      <div 
-                        style={{ 
-                          width: "42px", 
-                          height: "42px", 
-                          borderRadius: "12px", 
-                          background: getRandomGradient(student.id),
-                          color: "white",
-                          fontWeight: "bold",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: "14px",
-                          marginRight: "12px"
-                        }}
-                      >
-                        {getInitials(student.name)}
-                      </div>
-                      <div>
-                        <strong className="d-block text-dark small">{student.name}</strong>
-                        <span className="text-muted" style={{ fontSize: "11px" }}>{student.examsTaken} attempts</span>
-                      </div>
-                    </div>
-                    <div className="text-end">
-                      <span className="badge bg-success bg-opacity-10 text-success fw-bold" style={{ fontSize: "12px" }}>
-                        {student.accuracyRate}% Acc
-                      </span>
-                      <small className="d-block text-muted mt-1" style={{ fontSize: "10px" }}>Score: {student.totalScore} Qs</small>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </Card>
-        </Col>
-      </Row>
-
-      {/* RECENT SUBMISSIONS TIMELINE */}
-      <Card className="border-0 shadow-sm p-4 mb-4" style={{ borderRadius: "20px" }}>
-        <div className="d-flex justify-content-between align-items-center mb-4">
-          <div>
-            <h5 className="fw-bold text-dark m-0">📑 Recent Student Submissions</h5>
-            <p className="text-muted small m-0">Live log of exams/practice tests submitted by students</p>
-          </div>
-          <Button variant="outline-primary" size="sm" onClick={fetchStats} className="rounded-pill px-3 fw-bold">
-            Reload Feed
-          </Button>
-        </div>
-
-        <Table borderless hover responsive className="m-0 align-middle">
-          <thead>
-            <tr className="border-bottom text-muted" style={{ fontSize: "12px", textTransform: "uppercase", letterSpacing: "1px" }}>
-              <th className="pb-3">Student</th>
-              <th className="pb-3">Exam Module</th>
-              <th className="pb-3">Submitted At</th>
-              <th className="pb-3 text-center">Score</th>
-              <th className="pb-3 text-center">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {stats.recentSubmissions.length === 0 ? (
-              <tr>
-                <td colSpan="5" className="text-center text-muted py-4">No recent test attempts recorded yet.</td>
-              </tr>
-            ) : (
-              stats.recentSubmissions.map((record, index) => (
-                <tr key={record._id || index} className="border-bottom-soft">
-                  <td className="py-3">
-                    <strong className="d-block text-dark">{record.userId?.name || "Anonymous User"}</strong>
-                    <span className="text-muted small">{record.userId?.email || ""}</span>
-                  </td>
-                  <td>
-                    <span className="fw-semibold text-primary">{record.examId?.title || "Deleted/Archived Exam"}</span>
-                    <Badge bg={record.examId?.type === "practice" ? "info" : "warning"} className="ms-2 small">
-                      {record.examId?.type ? record.examId.type.toUpperCase() : "QUIZ"}
-                    </Badge>
-                  </td>
-                  <td className="text-muted small">
-                    {new Date(record.createdAt).toLocaleString()}
-                  </td>
-                  <td className="text-center font-monospace fw-bold">
-                    {record.score} / {record.total}
-                  </td>
-                  <td className="text-center">
-                    <Badge bg={record.status === "PASSED" ? "success" : "danger"} className="px-3 py-2 rounded-pill">
-                      {record.status}
-                    </Badge>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </Table>
-      </Card>
     </div>
   );
 };
