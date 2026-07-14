@@ -15,7 +15,7 @@ const AdminPage = () => {
   const renderContent = () => {
     switch (selected) {
       case "dashboard":
-        return <AdminDashboard />;
+        return <AdminDashboard onSelect={setSelected} />;
 
       case "users":
         return <UserManagement />;
