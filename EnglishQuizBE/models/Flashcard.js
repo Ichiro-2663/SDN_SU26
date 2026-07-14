@@ -2,6 +2,8 @@ const mongoose = require("mongoose");
 
 const FlashcardSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  // category/type of flashcard: vocabulary, grammar, common_mistake, collocation, idiom, collection
+  type: { type: String, enum: ["vocabulary", "grammar", "common_mistake", "collocation", "idiom", "collection"], default: "vocabulary" },
   word: { type: String, required: true },
   definition: { type: String, required: true },
   example: String,

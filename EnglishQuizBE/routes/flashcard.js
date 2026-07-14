@@ -5,11 +5,10 @@ const Flashcard = require("../models/Flashcard");
 // GET ALL FOR A USER
 router.get("/user/:userId", async (req, res) => {
   try {
-    const { topic } = req.query;
+    const { topic, type } = req.query;
     const filter = { userId: req.params.userId };
-    if (topic) {
-      filter.topic = topic;
-    }
+    if (topic) filter.topic = topic;
+    if (type) filter.type = type;
     const cards = await Flashcard.find(filter).populate("topic");
     res.json(cards);
   } catch (err) {
