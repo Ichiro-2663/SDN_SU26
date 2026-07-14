@@ -1,12 +1,13 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { Card, Button, Form, Modal, Row, Col, Badge, ButtonGroup, Alert } from "react-bootstrap";
-import { FaPlus, FaUndo, FaCheck, FaTimes, FaVolumeUp } from "react-icons/fa";
+import { FaPlus, FaUndo, FaCheck, FaTimes, FaVolumeUp, FaEdit, FaTrash } from "react-icons/fa";
 import axios from "axios";
 
 const Flashcards = () => {
   const [cards, setCards] = useState([]);
   const [topics, setTopics] = useState([]);
   const [selectedTopic, setSelectedTopic] = useState("");
+  const [selectedType, setSelectedType] = useState("");
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -19,31 +20,21 @@ const Flashcards = () => {
   const [example, setExample] = useState("");
   const [pronunciation, setPronunciation] = useState("");
   const [cardTopic, setCardTopic] = useState("");
+  const [cardType, setCardType] = useState("vocabulary");
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingId, setEditingId] = useState(null);
 
   const userId = localStorage.getItem("id");
 
-  useEffect(() => {
-    fetchTopics();
-    fetchCards();
-  }, [selectedTopic]);
-
-  const fetchTopics = async () => {
-    try {
-      const res = await axios.get("http://localhost:9999/topics");
-      setTopics(res.data);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const fetchCards = async () => {
+  const fetchCards = useCallback(async () => {
     if (!userId) return;
     try {
       setLoading(true);
       let url = `http://localhost:9999/flashcards/user/${userId}`;
-      if (selectedTopic) {
-        url += `?topic=${selectedTopic}`;
-      }
+      const qs = [];
+      if (selectedTopic) qs.push(`topic=${selectedTopic}`);
+      if (selectedType) qs.push(`type=${selectedType}`);
+      if (qs.length) url += `?${qs.join("&")}`;
       const res = await axios.get(url);
       setCards(res.data);
       setCurrentIndex(0);
@@ -52,6 +43,23 @@ const Flashcards = () => {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  }, [userId, selectedTopic, selectedType]);
+
+  useEffect(() => {
+    fetchTopics();
+  }, []);
+
+  useEffect(() => {
+    fetchCards();
+  }, [fetchCards]);
+
+  const fetchTopics = async () => {
+    try {
+      const res = await axios.get("http://localhost:9999/topics");
+      setTopics(res.data);
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -68,9 +76,14 @@ const Flashcards = () => {
         definition,
         example,
         pronunciation,
-        topic: cardTopic || undefined
+        topic: cardTopic || undefined,
+        type: cardType || "vocabulary"
       };
-      await axios.post("http://localhost:9999/flashcards", payload);
+      if (isEditing && editingId) {
+        await axios.put(`http://localhost:9999/flashcards/${editingId}`, payload);
+      } else {
+        await axios.post("http://localhost:9999/flashcards", payload);
+      }
       setShowModal(false);
       // Reset form
       setWord("");
@@ -78,6 +91,31 @@ const Flashcards = () => {
       setExample("");
       setPronunciation("");
       setCardTopic("");
+      setCardType("vocabulary");
+      setIsEditing(false);
+      setEditingId(null);
+      fetchCards();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleEditClick = (card) => {
+    setIsEditing(true);
+    setEditingId(card._id);
+    setWord(card.word || "");
+    setDefinition(card.definition || "");
+    setExample(card.example || "");
+    setPronunciation(card.pronunciation || "");
+    setCardTopic(card.topic?._id || "");
+    setCardType(card.type || "vocabulary");
+    setShowModal(true);
+  };
+
+  const handleDelete = async (cardId) => {
+    if (!window.confirm("Are you sure you want to delete this flashcard?")) return;
+    try {
+      await axios.delete(`http://localhost:9999/flashcards/${cardId}`);
       fetchCards();
     } catch (err) {
       console.error(err);
@@ -89,7 +127,7 @@ const Flashcards = () => {
     const card = cards[currentIndex];
     try {
       const res = await axios.post(`http://localhost:9999/flashcards/${card._id}/review`, { isCorrect });
-      
+
       // Update local card list
       const updatedCards = [...cards];
       updatedCards[currentIndex] = res.data;
@@ -135,11 +173,11 @@ const Flashcards = () => {
     <div className="w-100 p-2">
       <div className="d-flex justify-content-between align-items-center mb-4">
         <div>
-          <h4 className="m-0 fw-bold text-dark">Vocabulary Flashcards</h4>
-          <p className="text-muted m-0 small">Master English vocabulary with Spaced Repetition (Leitner System)</p>
+          <h4 className="m-0 fw-bold text-dark">{selectedType ? (selectedType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) + ' Flashcards') : 'Vocabulary Flashcards'}</h4>
+          <p className="text-muted m-0 small">Master English using Spaced Repetition (Leitner System)</p>
         </div>
         <Button variant="warning" className="text-dark fw-bold" style={{ borderRadius: "20px" }} onClick={() => setShowModal(true)}>
-          <FaPlus className="me-1" /> Add Word
+          <FaPlus className="me-1" /> Add Flashcard
         </Button>
       </div>
 
@@ -152,15 +190,30 @@ const Flashcards = () => {
         <Col md={6}>
           <Form.Group className="d-flex justify-content-end align-items-center">
             <Form.Label className="me-2 mb-0 fw-semibold text-secondary">Topic Filter:</Form.Label>
-            <Form.Select 
-              style={{ width: "200px", borderRadius: "8px" }} 
-              value={selectedTopic} 
+            <Form.Select
+              style={{ width: "200px", borderRadius: "8px" }}
+              value={selectedTopic}
               onChange={e => setSelectedTopic(e.target.value)}
             >
               <option value="">All Topics</option>
               {topics.map(t => <option key={t._id} value={t._id}>{t.name}</option>)}
             </Form.Select>
           </Form.Group>
+        </Col>
+      </Row>
+
+      <Row className="mb-3">
+        <Col className="d-flex justify-content-end">
+          <Form.Label className="me-2 mb-0 fw-semibold text-secondary">Category:</Form.Label>
+          <Form.Select style={{ width: "200px", borderRadius: "8px" }} value={selectedType} onChange={e => setSelectedType(e.target.value)}>
+            <option value="">All</option>
+            <option value="vocabulary">Vocabulary</option>
+            <option value="grammar">Grammar</option>
+            <option value="common_mistake">Common Mistake</option>
+            <option value="collocation">Collocation</option>
+            <option value="idiom">Idiom</option>
+            <option value="collection">Collection</option>
+          </Form.Select>
         </Col>
       </Row>
 
@@ -217,9 +270,9 @@ const Flashcards = () => {
                   {activeCard.pronunciation && (
                     <div className="d-flex justify-content-center align-items-center text-muted fs-5">
                       <span>{activeCard.pronunciation}</span>
-                      <Button 
-                        variant="link" 
-                        className="text-warning p-0 ms-2" 
+                      <Button
+                        variant="link"
+                        className="text-warning p-0 ms-2"
                         onClick={(e) => { e.stopPropagation(); handleTTS(activeCard.word); }}
                       >
                         <FaVolumeUp size={18} />
@@ -274,9 +327,13 @@ const Flashcards = () => {
           </div>
           <ButtonGroup size="sm" className="mt-2">
             <Button variant="outline-secondary" disabled={currentIndex === 0} onClick={() => { setCurrentIndex(currentIndex - 1); setIsFlipped(false); }}>Prev</Button>
-            <Button variant="outline-secondary" onClick={() => setIsFlipped(!isFlipped)}><FaUndo className="me-1"/> Flip</Button>
+            <Button variant="outline-secondary" onClick={() => setIsFlipped(!isFlipped)}><FaUndo className="me-1" /> Flip</Button>
             <Button variant="outline-secondary" disabled={currentIndex === cards.length - 1} onClick={() => { setCurrentIndex(currentIndex + 1); setIsFlipped(false); }}>Next</Button>
           </ButtonGroup>
+          <div className="d-flex gap-2 mt-2">
+            <Button variant="outline-primary" size="sm" onClick={() => handleEditClick(activeCard)}><FaEdit /> Edit</Button>
+            <Button variant="outline-danger" size="sm" onClick={() => handleDelete(activeCard._id)}><FaTrash /> Delete</Button>
+          </div>
         </div>
       )}
 
@@ -308,6 +365,17 @@ const Flashcards = () => {
               <Form.Select value={cardTopic} onChange={e => setCardTopic(e.target.value)}>
                 <option value="">Select Topic (Optional)</option>
                 {topics.map(t => <option key={t._id} value={t._id}>{t.name}</option>)}
+              </Form.Select>
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Category / Type</Form.Label>
+              <Form.Select value={cardType} onChange={e => setCardType(e.target.value)}>
+                <option value="vocabulary">Vocabulary</option>
+                <option value="grammar">Grammar</option>
+                <option value="common_mistake">Common Mistake</option>
+                <option value="collocation">Collocation</option>
+                <option value="idiom">Idiom</option>
+                <option value="collection">Collection</option>
               </Form.Select>
             </Form.Group>
             <div className="d-flex justify-content-end mt-4">

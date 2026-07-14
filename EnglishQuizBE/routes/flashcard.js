@@ -6,15 +6,10 @@ const Flashcard = require("../models/Flashcard");
 // GET ALL FOR A USER
 router.get("/user/:userId", async (req, res) => {
   try {
-    const { userId } = req.params;
-    if (!userId || userId === "null" || userId === "undefined" || !mongoose.Types.ObjectId.isValid(userId)) {
-      return res.json([]);
-    }
-    const { topic } = req.query;
-    const filter = { userId };
-    if (topic && topic !== "null" && topic !== "undefined" && mongoose.Types.ObjectId.isValid(topic)) {
-      filter.topic = topic;
-    }
+    const { topic, type } = req.query;
+    const filter = { userId: req.params.userId };
+    if (topic) filter.topic = topic;
+    if (type) filter.type = type;
     const cards = await Flashcard.find(filter).populate("topic");
     res.json(cards);
   } catch (err) {
