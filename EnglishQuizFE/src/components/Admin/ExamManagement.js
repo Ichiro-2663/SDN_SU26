@@ -20,7 +20,7 @@ const ExamManagement = () => {
     topic: "",
     selectedQuestions: [],
     totalCount: 10,
-    mixedCounts: { A1: 0, A2: 0, B1: 0, B2: 0, C1: 0, C2: 0 },
+    mixedCounts: { easy: 0, medium: 0, hard: 0 },
     selectionMode: "auto", // "auto" or "manual"
   });
 
@@ -85,14 +85,14 @@ const ExamManagement = () => {
         topic: exam.topic?._id || exam.topic || "",
         selectedQuestions: exam.questions ? exam.questions.map(q => typeof q === 'object' ? q._id : q) : [],
         totalCount: exam.questions ? exam.questions.length : 10,
-        mixedCounts: { A1: 0, A2: 0, B1: 0, B2: 0, C1: 0, C2: 0 },
+        mixedCounts: { easy: 0, medium: 0, hard: 0 },
         selectionMode: exam.questions && exam.questions.length > 0 ? "manual" : "auto",
       });
     } else {
       setEditingId(null);
       setFormData({ 
         title: "", duration: 30, type: "quiz", level: "Mixed", topic: "", selectedQuestions: [],
-        totalCount: 10, mixedCounts: { A1: 0, A2: 0, B1: 0, B2: 0, C1: 0, C2: 0 },
+        totalCount: 10, mixedCounts: { easy: 0, medium: 0, hard: 0 },
         selectionMode: "auto",
       });
     }
@@ -166,7 +166,7 @@ const ExamManagement = () => {
         });
       }
 
-      const qsByLevel = { A1: [], A2: [], B1: [], B2: [], C1: [], C2: [] };
+      const qsByLevel = { easy: [], medium: [], hard: [] };
       pool.forEach(q => {
         if (qsByLevel[q.level]) qsByLevel[q.level].push(q._id);
       });
@@ -384,12 +384,9 @@ const ExamManagement = () => {
                       className="rounded-pill shadow-sm"
                     >
                       <option value="Mixed">Mixed Levels</option>
-                      <option value="A1">Level A1</option>
-                      <option value="A2">Level A2</option>
-                      <option value="B1">Level B1</option>
-                      <option value="B2">Level B2</option>
-                      <option value="C1">Level C1</option>
-                      <option value="C2">Level C2</option>
+                      <option value="easy">Easy</option>
+                      <option value="medium">Medium</option>
+                      <option value="hard">Hard</option>
                     </Form.Select>
                   </Form.Group>
                   
@@ -439,7 +436,7 @@ const ExamManagement = () => {
                         <div>
                           <label className="fw-semibold text-secondary small mb-2">Configure Level Quantities:</label>
                           <Row className="g-3">
-                            {["A1", "A2", "B1", "B2", "C1", "C2"].map(lvl => (
+                            {["easy", "medium", "hard"].map(lvl => (
                                <Col xs={4} key={lvl}>
                                  <Form.Group className="bg-white p-2 rounded-3 shadow-sm border border-light-subtle text-center">
                                    <Form.Label className="small fw-bold text-muted mb-1">{lvl}</Form.Label>
@@ -530,12 +527,9 @@ const ExamManagement = () => {
                               className="rounded-pill shadow-none"
                             >
                               <option value="All">All Levels</option>
-                              <option value="A1">A1</option>
-                              <option value="A2">A2</option>
-                              <option value="B1">B1</option>
-                              <option value="B2">B2</option>
-                              <option value="C1">C1</option>
-                              <option value="C2">C2</option>
+                              <option value="easy">Easy</option>
+                              <option value="medium">Medium</option>
+                              <option value="hard">Hard</option>
                             </Form.Select>
                           </Col>
                         </Row>

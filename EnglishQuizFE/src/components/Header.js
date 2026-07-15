@@ -45,7 +45,7 @@ const Header = () => {
         background: "rgba(255,255,255,0.9)",
         backdropFilter: "blur(10px)",
         position: "relative",
-        zIndex: 9999,
+        zIndex: 1040,
       }}
     >
       <Container fluid>
